@@ -82,9 +82,10 @@ export class SessionLogger {
         }
       }
       
-      // Create log file with timestamp
+      // Create log file with timestamp and mode
       const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
-      this.logFile = path.join(logDirectory, `session-${timestamp}-${SESSION_ID}.log`);
+      const loggingMode = config.sessionLoggingMode ?? 'formatted';
+      this.logFile = path.join(logDirectory, `session-${timestamp}-${SESSION_ID}-${loggingMode}.log`);
       
       // Write log header
       this.writeToLog({
@@ -94,7 +95,8 @@ export class SessionLogger {
           session_id: SESSION_ID,
           start_time: timestamp,
           platform: process.platform,
-          node_version: process.version
+          node_version: process.version,
+          logging_mode: config.sessionLoggingMode ?? 'formatted'
         }
       });
     }
