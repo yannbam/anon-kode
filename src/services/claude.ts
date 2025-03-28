@@ -718,7 +718,7 @@ async function queryOpenAI(
 ): Promise<AssistantMessage> {
   // Import here to avoid circular dependency - proper ES Module dynamic import
   const sessionLoggerModule = await import('../utils/sessionLogger.js');
-  const { sessionLogger } = sessionLoggerModule;
+  const { sessionLogger, rawLogger } = sessionLoggerModule;
   
   //const anthropic = await getAnthropicClient(options.model)
   const config = getGlobalConfig()
@@ -780,6 +780,7 @@ async function queryOpenAI(
     response = await withRetry(async attempt => {
       attemptNumber = attempt
       start = Date.now()
+      const requestId = randomUUID();
       const opts: OpenAI.ChatCompletionCreateParams = {
         model,
         max_tokens: getMaxTokensForModelType(modelType),
@@ -804,12 +805,84 @@ async function queryOpenAI(
         })
         opts.reasoning_effort = reasoningEffort
       }
-      const s = await getCompletion(modelType, opts)
-      let finalResponse
+      
+      // Log API request
+      try {
+        rawLogger.logApiRequest(
+          'openai', 
+          requestId, 
+          `${config.largeModelBaseURL || config.smallModelBaseURL || 'https://api.openai.com'}/chat/completions`,
+          'POST',
+          { 'Content-Type': 'application/json' },
+          // Clone the request to avoid modifying the original
+          JSON.parse(JSON.stringify(opts))
+        );
+      } catch (logError) {
+        console.error('Failed to log API request:', logError);
+      }
+      
+      const requestStartTime = Date.now();
+      let s;
+      try {
+        s = await getCompletion(modelType, opts);
+      } catch (error) {
+        // Log API error
+        try {
+          const durationMs = Date.now() - requestStartTime;
+          rawLogger.logApiError('openai', requestId, error, durationMs);
+        } catch (logError) {
+          console.error('Failed to log API error:', logError);
+        }
+        throw error; // Re-throw to be handled by retry logic
+      }
+      
+      let finalResponse;
       if(opts.stream) {
-        finalResponse = await handleMessageStream(s)
+        // For streaming, we'll handle logging inside the stream processor
+        const originalStream = s;
+        // Create a wrapper stream that logs chunks
+        let chunkIndex = 0;
+        const wrappedStream = (async function* () {
+          try {
+            for await (const chunk of originalStream) {
+              // Log each chunk
+              try {
+                rawLogger.logApiStreamChunk('openai', requestId, chunk, chunkIndex++);
+              } catch (logError) {
+                console.error('Failed to log stream chunk:', logError);
+              }
+              yield chunk;
+            }
+          } catch (error) {
+            // Log stream error
+            try {
+              const durationMs = Date.now() - requestStartTime;
+              rawLogger.logApiError('openai', requestId, error, durationMs);
+            } catch (logError) {
+              console.error('Failed to log stream error:', logError);
+            }
+            throw error; // Re-throw
+          }
+        })();
+        
+        finalResponse = await handleMessageStream(wrappedStream);
       } else {
-        finalResponse = s
+        finalResponse = s;
+      }
+      
+      // Log API response
+      try {
+        const durationMs = Date.now() - requestStartTime;
+        rawLogger.logApiResponse(
+          'openai',
+          requestId,
+          200, // Status code not directly available, assume success
+          {}, // Headers not available
+          finalResponse,
+          durationMs
+        );
+      } catch (logError) {
+        console.error('Failed to log API response:', logError);
       }
 
       const r = convertOpenAIResponseToAnthropic(finalResponse)
@@ -817,6 +890,14 @@ async function queryOpenAI(
     })
   } catch (error) {
     logError(error)
+    // Log the overall API error, even after retry attempts
+    try {
+      const requestId = randomUUID(); // Generate a new request ID for the error
+      const durationMs = Date.now() - startIncludingRetries;
+      rawLogger.logApiError('openai', requestId, error, durationMs);
+    } catch (logError) {
+      console.error('Failed to log final API error:', logError);
+    }
     return getAssistantMessageFromError(error)
   }
   const durationMs = Date.now() - start
@@ -878,6 +959,10 @@ export async function queryHaiku({
   enablePromptCaching?: boolean
   signal?: AbortSignal
 }): Promise<AssistantMessage> {
+  // Import here to avoid circular dependency - proper ES Module dynamic import
+  const sessionLoggerModule = await import('../utils/sessionLogger.js');
+  const { rawLogger } = sessionLoggerModule;
+  
   return await withVCR(
     [
       {
