@@ -67,8 +67,10 @@ export class SessionLogger {
   private initialize(): void {
     const config = getGlobalConfig();
     this.enabled = config.enableSessionLogging ?? false;
+    const loggingMode = config.sessionLoggingMode ?? 'formatted';
     
-    if (this.enabled) {
+    // Only enable formatted logging if mode is 'formatted' or 'both'
+    if (this.enabled && (loggingMode === 'formatted' || loggingMode === 'both')) {
       const logDirectory = this.resolveLogPath(config.sessionLogPath ?? '.KODING-LOGS');
       
       // Create directory if it doesn't exist
@@ -84,8 +86,7 @@ export class SessionLogger {
       
       // Create log file with timestamp and mode
       const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
-      const loggingMode = config.sessionLoggingMode ?? 'formatted';
-      this.logFile = path.join(logDirectory, `session-${timestamp}-${SESSION_ID}-${loggingMode}.log`);
+      this.logFile = path.join(logDirectory, `session-${timestamp}-${SESSION_ID}-formatted.log`);
       
       // Write log header
       this.writeToLog({
@@ -96,9 +97,12 @@ export class SessionLogger {
           start_time: timestamp,
           platform: process.platform,
           node_version: process.version,
-          logging_mode: config.sessionLoggingMode ?? 'formatted'
+          logging_mode: loggingMode
         }
       });
+    } else if (this.enabled && loggingMode === 'raw') {
+      // If only raw logging is enabled, disable the formatted logger
+      this.enabled = false;
     }
   }
 
@@ -305,5 +309,168 @@ export class SessionLogger {
   }
 }
 
-// Singleton export
+// RawLogger class for storing unformatted API requests and responses
+export class RawLogger {
+  private static instance: RawLogger;
+  private logFile: string | null = null;
+  private enabled: boolean = false;
+  private loggingMode: string = 'formatted';
+
+  private constructor() {
+    this.initialize();
+  }
+
+  public static getInstance(): RawLogger {
+    if (!RawLogger.instance) {
+      RawLogger.instance = new RawLogger();
+    }
+    return RawLogger.instance;
+  }
+
+  // Initialize logger based on config
+  private initialize(): void {
+    const config = getGlobalConfig();
+    this.enabled = config.enableSessionLogging ?? false;
+    this.loggingMode = config.sessionLoggingMode ?? 'formatted';
+    
+    // Only enable if mode is 'raw' or 'both'
+    if (this.enabled && (this.loggingMode === 'raw' || this.loggingMode === 'both')) {
+      const logDirectory = this.resolveLogPath(config.sessionLogPath ?? '.KODING-LOGS');
+      
+      // Create directory if it doesn't exist
+      if (!existsSync(logDirectory)) {
+        try {
+          mkdirSync(logDirectory, { recursive: true });
+        } catch (err) {
+          console.error(`Failed to create log directory: ${err}`);
+          this.enabled = false;
+          return;
+        }
+      }
+      
+      // Create log file with timestamp and mode
+      const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\.+/, '');
+      this.logFile = path.join(logDirectory, `session-${timestamp}-${SESSION_ID}-raw.log`);
+    }
+  }
+
+  // Resolve relative or user-home paths
+  private resolveLogPath(logPath: string): string {
+    if (logPath.startsWith('~')) {
+      return path.join(homedir(), logPath.substring(1));
+    }
+    if (path.isAbsolute(logPath)) {
+      return logPath;
+    }
+    return path.resolve(getCwd(), logPath);
+  }
+
+  // Get current timestamp in ISO format with UTC timezone
+  private getCurrentTimestamp(): string {
+    return new Date().toISOString();
+  }
+
+  // Redact sensitive information from requests
+  private redactSensitiveInfo(data: any): any {
+    if (!data) return data;
+    
+    // Deep clone to avoid modifying the original object
+    const redacted = JSON.parse(JSON.stringify(data));
+    
+    // Redact API keys in headers
+    if (redacted.headers) {
+      if (redacted.headers.Authorization) {
+        redacted.headers.Authorization = 'Bearer [REDACTED]';
+      }
+      if (redacted.headers['x-api-key']) {
+        redacted.headers['x-api-key'] = '[REDACTED]';
+      }
+    }
+    
+    return redacted;
+  }
+
+  // Write raw log entry to file
+  private writeToLog(data: any): void {
+    if (!this.enabled || !this.logFile) return;
+    
+    try {
+      // Use JSON.stringify with null replacer to avoid any formatting changes
+      const rawData = JSON.stringify(data);
+      appendFileSync(this.logFile, `${rawData}\n`);
+    } catch (err) {
+      console.error(`Failed to write to raw log file: ${err}`);
+    }
+  }
+
+  // Log API request
+  public logApiRequest(provider: string, requestId: string, endpoint: string, method: string, headers: any, body: any): void {
+    if (!this.enabled) return;
+    
+    this.writeToLog({
+      timestamp: this.getCurrentTimestamp(),
+      type: 'api_request',
+      provider,
+      request_id: requestId,
+      data: {
+        endpoint,
+        method,
+        headers: this.redactSensitiveInfo({ headers }).headers,
+        body
+      }
+    });
+  }
+
+  // Log API response
+  public logApiResponse(provider: string, requestId: string, status: number, headers: any, body: any, durationMs: number): void {
+    if (!this.enabled) return;
+    
+    this.writeToLog({
+      timestamp: this.getCurrentTimestamp(),
+      type: 'api_response',
+      provider,
+      request_id: requestId,
+      data: {
+        status,
+        headers,
+        body,
+        duration_ms: durationMs
+      }
+    });
+  }
+
+  // Log API error
+  public logApiError(provider: string, requestId: string, error: any, durationMs: number): void {
+    if (!this.enabled) return;
+    
+    this.writeToLog({
+      timestamp: this.getCurrentTimestamp(),
+      type: 'api_error',
+      provider,
+      request_id: requestId,
+      data: {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        duration_ms: durationMs
+      }
+    });
+  }
+
+  // Log API stream chunk
+  public logApiStreamChunk(provider: string, requestId: string, chunk: any, index: number): void {
+    if (!this.enabled) return;
+    
+    this.writeToLog({
+      timestamp: this.getCurrentTimestamp(),
+      type: 'api_stream_chunk',
+      provider,
+      request_id: requestId,
+      chunk_index: index,
+      data: chunk
+    });
+  }
+}
+
+// Singleton exports
 export const sessionLogger = SessionLogger.getInstance();
+export const rawLogger = RawLogger.getInstance();
