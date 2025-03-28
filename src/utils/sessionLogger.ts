@@ -3,6 +3,7 @@ import path from 'path';
 import { homedir } from 'os';
 import { getGlobalConfig } from './config.js';
 import { SESSION_ID } from './log.js';
+import { getCwd } from './state.js';
 
 // Type definitions for message items
 export interface LoggedItem {
@@ -107,7 +108,7 @@ export class SessionLogger {
     if (path.isAbsolute(logPath)) {
       return logPath;
     }
-    return path.resolve(process.cwd(), logPath);
+    return path.resolve(getCwd(), logPath);
   }
 
   // Get current timestamp in ISO format with UTC timezone
