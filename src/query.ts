@@ -289,8 +289,17 @@ export async function* runToolUse(
   toolUseContext: ToolUseContext,
   shouldSkipPermissionCheck?: boolean,
 ): AsyncGenerator<Message, void> {
+  // Import here to avoid circular dependency
+  const { sessionLogger } = require('./utils/sessionLogger');
+  const { getGlobalConfig } = require('./utils/config');
+  
   const toolName = toolUse.name
   const tool = toolUseContext.options.tools.find(t => t.name === toolName)
+  
+  // Log tool request
+  if (getGlobalConfig().enableSessionLogging) {
+    sessionLogger.logToolCallRequest(toolUse.id, toolName, toolUse.input);
+  }
 
   // Check if the tool exists
   if (!tool) {
@@ -300,6 +309,16 @@ export async function* runToolUse(
       toolName,
       toolUseID: toolUse.id,
     })
+    
+    // Log tool error
+    if (getGlobalConfig().enableSessionLogging) {
+      sessionLogger.logToolCallResult(
+        toolUse.id, 
+        { error: `No such tool available: ${toolName}` }, 
+        'error'
+      );
+    }
+    
     yield createUserMessage([
       {
         type: 'tool_result',
@@ -319,6 +338,16 @@ export async function* runToolUse(
         toolName: tool.name,
         toolUseID: toolUse.id,
       })
+      
+      // Log tool cancellation
+      if (getGlobalConfig().enableSessionLogging) {
+        sessionLogger.logToolCallResult(
+          toolUse.id, 
+          { canceled: true }, 
+          'canceled'
+        );
+      }
+      
       const message = createUserMessage([
         createToolResultStopMessage(toolUse.id),
       ])
@@ -445,6 +474,23 @@ async function* checkPermissionsAndCallTool(
             messageID: assistantMessage.message.id,
             toolName: tool.name,
           })
+          
+          // Import here to avoid circular dependency
+          const { sessionLogger } = require('./utils/sessionLogger');
+          const { getGlobalConfig } = require('./utils/config');
+          
+          // Log successful tool result
+          if (getGlobalConfig().enableSessionLogging) {
+            sessionLogger.logToolCallResult(
+              toolUseID, 
+              {
+                data: result.data,
+                result: result.resultForAssistant
+              }, 
+              'success'
+            );
+          }
+          
           yield createUserMessage(
             [
               {
@@ -482,6 +528,24 @@ async function* checkPermissionsAndCallTool(
       toolName: tool.name,
       toolInput: JSON.stringify(input).slice(0, 1000),
     })
+    
+    // Import here to avoid circular dependency
+    const { sessionLogger } = require('./utils/sessionLogger');
+    const { getGlobalConfig } = require('./utils/config');
+    
+    // Log tool error
+    if (getGlobalConfig().enableSessionLogging) {
+      sessionLogger.logToolCallResult(
+        toolUseID, 
+        { 
+          error: content.slice(0, 2000),
+          toolName: tool.name,
+          toolInput: JSON.stringify(input).slice(0, 1000)
+        }, 
+        'error'
+      );
+    }
+    
     yield createUserMessage([
       {
         type: 'tool_result',

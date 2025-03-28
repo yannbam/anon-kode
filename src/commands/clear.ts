@@ -11,12 +11,21 @@ export async function clearConversation(context: {
     forkConvoWithMessages: Message[],
   ) => void
 }) {
+  // Import session logger here to avoid circular dependency
+  const { sessionLogger } = require('../utils/sessionLogger');
+  const { getGlobalConfig } = require('../utils/config');
+  
   await clearTerminal()
   getMessagesSetter()([])
   context.setForkConvoWithMessagesOnTheNextRender([])
   getContext.cache.clear?.()
   getCodeStyle.cache.clear?.()
   await setCwd(getOriginalCwd())
+  
+  // Log the clear command
+  if (getGlobalConfig().enableSessionLogging) {
+    sessionLogger.logContextChange('clear');
+  }
 }
 
 const clear = {

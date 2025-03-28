@@ -78,6 +78,29 @@ export function Config({ onClose }: Props): React.ReactNode {
   const settings: Setting[] = [
     // Global settings
     {
+      id: 'enableSessionLogging',
+      label: 'Enable Session Logging',
+      value: globalConfig.enableSessionLogging ?? false,
+      type: 'boolean',
+      onChange(enableSessionLogging: boolean) {
+        const config = { ...getGlobalConfig(), enableSessionLogging }
+        saveGlobalConfig(config)
+        setGlobalConfig(config)
+      },
+    },
+    {
+      id: 'sessionLogPath',
+      label: 'Session Log Path',
+      value: globalConfig.sessionLogPath ?? '.KODING-LOGS',
+      type: 'string',
+      disabled: !(globalConfig.enableSessionLogging ?? false),
+      onChange(sessionLogPath: string) {
+        const config = { ...getGlobalConfig(), sessionLogPath }
+        saveGlobalConfig(config)
+        setGlobalConfig(config)
+      },
+    },
+    {
       id: 'provider',
       label: 'AI Provider',
       value: globalConfig.primaryProvider ?? 'anthropic',

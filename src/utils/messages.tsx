@@ -164,11 +164,22 @@ export async function processUserInput(
   },
   pastedImage: string | null,
 ): Promise<Message[]> {
+  // Import here to avoid circular dependency
+  const { sessionLogger } = require('./sessionLogger');
+  const { getGlobalConfig } = require('./config');
+  const config = getGlobalConfig();
+  
   // Bash commands
   if (mode === 'bash') {
     logEvent('tengu_input_bash', {})
 
     const userMessage = createUserMessage(`<bash-input>${input}</bash-input>`)
+    
+    // Log the bash command
+    if (config.enableSessionLogging) {
+      sessionLogger.logCommand('bash', { command: input });
+      sessionLogger.logUserMessage(userMessage.uuid, `<bash-input>${input}</bash-input>`);
+    }
 
     // Special case: cd
     if (input.startsWith('cd ')) {
@@ -293,25 +304,33 @@ export async function processUserInput(
 
   // Regular user prompt
   logEvent('tengu_input_prompt', {})
+  
+  let userMessage;
   if (pastedImage) {
-    return [
-      createUserMessage([
-        {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: 'image/png',
-            data: pastedImage,
-          },
+    userMessage = createUserMessage([
+      {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: 'image/png',
+          data: pastedImage,
         },
-        {
-          type: 'text',
-          text: input,
-        },
-      ]),
-    ]
+      },
+      {
+        type: 'text',
+        text: input,
+      },
+    ]);
+  } else {
+    userMessage = createUserMessage(input);
   }
-  return [createUserMessage(input)]
+  
+  // Log the user message
+  if (config.enableSessionLogging) {
+    sessionLogger.logUserMessage(userMessage.uuid, userMessage.message.content);
+  }
+  
+  return [userMessage]
 }
 
 async function getMessagesForSlashCommand(

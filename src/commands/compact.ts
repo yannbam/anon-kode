@@ -72,6 +72,10 @@ const compact = {
       cache_read_input_tokens: 0,
     }
 
+    // Import session logger here to avoid circular dependency
+    const { sessionLogger } = require('../utils/sessionLogger');
+    const { getGlobalConfig } = require('../utils/config');
+    
     // Clear screen and messages
     await clearTerminal()
     getMessagesSetter()([])
@@ -83,6 +87,11 @@ const compact = {
     ])
     getContext.cache.clear?.()
     getCodeStyle.cache.clear?.()
+    
+    // Log the compact command with the summary
+    if (getGlobalConfig().enableSessionLogging) {
+      sessionLogger.logContextChange('compact', summary);
+    }
 
     return '' // not used, just for typesafety. TODO: avoid this hack
   },

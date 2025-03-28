@@ -184,11 +184,22 @@ export function REPL({
 
   useEffect(() => {
     if (forkConvoWithMessagesOnTheNextRender) {
-      setForkNumber(_ => _ + 1)
+      // Import here to avoid circular dependency
+      const { sessionLogger } = require('../utils/sessionLogger');
+      const { getGlobalConfig } = require('../utils/config');
+      
+      const newForkNumber = forkNumber + 1;
+      
+      // Log the fork event
+      if (getGlobalConfig().enableSessionLogging) {
+        sessionLogger.logFork(newForkNumber, 'User requested fork (escape to undo)');
+      }
+      
+      setForkNumber(newForkNumber)
       setForkConvoWithMessagesOnTheNextRender(null)
       setMessages(forkConvoWithMessagesOnTheNextRender)
     }
-  }, [forkConvoWithMessagesOnTheNextRender])
+  }, [forkConvoWithMessagesOnTheNextRender, forkNumber])
 
   useEffect(() => {
     const totalCost = getTotalCost()

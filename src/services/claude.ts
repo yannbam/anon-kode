@@ -716,7 +716,9 @@ async function queryOpenAI(
     prependCLISysprompt: boolean
   },
 ): Promise<AssistantMessage> {
-
+  // Import here to avoid circular dependency
+  const { sessionLogger } = require('../utils/sessionLogger');
+  
   //const anthropic = await getAnthropicClient(options.model)
   const config = getGlobalConfig()
   const model = modelType === 'large' ? config.largeModelName : config.smallModelName
@@ -833,7 +835,7 @@ async function queryOpenAI(
 
   addToTotalCost(costUSD, durationMsIncludingRetries)
 
-  return {
+  const assistantMessage = {
     message: {
       ...response,
       content: normalizeContentFromAPI(response.content),
@@ -848,7 +850,18 @@ async function queryOpenAI(
     durationMs,
     type: 'assistant',
     uuid: randomUUID(),
+  };
+  
+  // Log the assistant message
+  if (config.enableSessionLogging) {
+    sessionLogger.logAssistantMessage(
+      assistantMessage.uuid,
+      model || options?.model || 'unknown',
+      assistantMessage.message.content
+    );
   }
+  
+  return assistantMessage;
 }
 
 export async function queryHaiku({

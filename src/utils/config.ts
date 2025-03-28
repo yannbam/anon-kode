@@ -144,6 +144,9 @@ export type GlobalConfig = {
   shiftEnterKeyBindingInstalled?: boolean
   proxy?: string
   stream?: boolean
+  // Comprehensive session logging options
+  enableSessionLogging?: boolean
+  sessionLogPath?: string
 }
 
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
@@ -158,6 +161,8 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
     rejected: [],
   },
   stream: true,
+  enableSessionLogging: false,
+  sessionLogPath: '.KODING-LOGS',
 }
 
 export const GLOBAL_CONFIG_KEYS = [
@@ -173,6 +178,8 @@ export const GLOBAL_CONFIG_KEYS = [
   'preferredNotifChannel',
   'shiftEnterKeyBindingInstalled',
   'maxTokens',
+  'enableSessionLogging',
+  'sessionLogPath',
 ] as const
 
 export type GlobalConfigKey = (typeof GLOBAL_CONFIG_KEYS)[number]
