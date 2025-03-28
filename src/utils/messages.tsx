@@ -164,9 +164,11 @@ export async function processUserInput(
   },
   pastedImage: string | null,
 ): Promise<Message[]> {
-  // Import here to avoid circular dependency
-  const { sessionLogger } = require('./sessionLogger');
-  const { getGlobalConfig } = require('./config');
+  // Import here to avoid circular dependency - using proper ES Module dynamic import
+  const sessionLoggerModule = await import('./sessionLogger.js');
+  const configModule = await import('./config.js'); 
+  const { sessionLogger } = sessionLoggerModule;
+  const { getGlobalConfig } = configModule;
   const config = getGlobalConfig();
   
   // Bash commands

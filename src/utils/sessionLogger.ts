@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, appendFileSync } from 'fs';
 import path from 'path';
 import { homedir } from 'os';
-import { getGlobalConfig } from './config';
-import { SESSION_ID } from './log';
+import { getGlobalConfig } from './config.js';
+import { SESSION_ID } from './log.js';
 
 // Type definitions for message items
 export interface LoggedItem {

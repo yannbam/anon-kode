@@ -72,9 +72,11 @@ const compact = {
       cache_read_input_tokens: 0,
     }
 
-    // Import session logger here to avoid circular dependency
-    const { sessionLogger } = require('../utils/sessionLogger');
-    const { getGlobalConfig } = require('../utils/config');
+    // Import session logger here to avoid circular dependency - proper ES Module dynamic import
+    const sessionLoggerModule = await import('../utils/sessionLogger.js');
+    const configModule = await import('../utils/config.js');
+    const { sessionLogger } = sessionLoggerModule;
+    const { getGlobalConfig } = configModule;
     
     // Clear screen and messages
     await clearTerminal()

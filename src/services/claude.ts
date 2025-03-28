@@ -716,8 +716,9 @@ async function queryOpenAI(
     prependCLISysprompt: boolean
   },
 ): Promise<AssistantMessage> {
-  // Import here to avoid circular dependency
-  const { sessionLogger } = require('../utils/sessionLogger');
+  // Import here to avoid circular dependency - proper ES Module dynamic import
+  const sessionLoggerModule = await import('../utils/sessionLogger.js');
+  const { sessionLogger } = sessionLoggerModule;
   
   //const anthropic = await getAnthropicClient(options.model)
   const config = getGlobalConfig()

@@ -11,9 +11,11 @@ export async function clearConversation(context: {
     forkConvoWithMessages: Message[],
   ) => void
 }) {
-  // Import session logger here to avoid circular dependency
-  const { sessionLogger } = require('../utils/sessionLogger');
-  const { getGlobalConfig } = require('../utils/config');
+  // Import session logger here to avoid circular dependency - proper ES Module dynamic import
+  const sessionLoggerModule = await import('../utils/sessionLogger.js');
+  const configModule = await import('../utils/config.js');
+  const { sessionLogger } = sessionLoggerModule;
+  const { getGlobalConfig } = configModule;
   
   await clearTerminal()
   getMessagesSetter()([])

@@ -1,17 +1,17 @@
 import { existsSync, mkdirSync, rmSync } from 'fs';
 import path from 'path';
 import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
-import { SessionLogger } from './sessionLogger';
+import { SessionLogger } from './sessionLogger.js';
 
 // Mock the required dependencies
-vi.mock('./config', () => ({
+vi.mock('./config.js', () => ({
   getGlobalConfig: vi.fn(() => ({
     enableSessionLogging: true,
     sessionLogPath: './.test-logs'
   }))
 }));
 
-vi.mock('./log', () => ({
+vi.mock('./log.js', () => ({
   SESSION_ID: 'test-session-id'
 }));
 
@@ -32,9 +32,10 @@ describe('SessionLogger', () => {
     }
   });
 
-  it('should create log directory if it does not exist', () => {
+  it('should create log directory if it does not exist', async () => {
     // Import the singleton after mocks are set up
-    const { SessionLogger } = require('./sessionLogger');
+    const sessionLoggerModule = await import('./sessionLogger.js');
+    const { SessionLogger } = sessionLoggerModule;
     
     // Get the instance (should initialize with our mocked config)
     const logger = SessionLogger.getInstance();
@@ -46,9 +47,10 @@ describe('SessionLogger', () => {
     expect(existsSync(TEST_DIR)).toBe(true);
   });
 
-  it('should log user messages with correct format', () => {
+  it('should log user messages with correct format', async () => {
     // Import the singleton after mocks are set up
-    const { SessionLogger } = require('./sessionLogger');
+    const sessionLoggerModule = await import('./sessionLogger.js');
+    const { SessionLogger } = sessionLoggerModule;
     
     // Spy on the writeToLog method
     const logger = SessionLogger.getInstance();
@@ -64,9 +66,10 @@ describe('SessionLogger', () => {
     expect(writeToLogSpy.mock.calls[0][0].content.text).toBe('Hello world');
   });
 
-  it('should deduplicate messages with the same ID', () => {
+  it('should deduplicate messages with the same ID', async () => {
     // Import the singleton after mocks are set up
-    const { SessionLogger } = require('./sessionLogger');
+    const sessionLoggerModule = await import('./sessionLogger.js');
+    const { SessionLogger } = sessionLoggerModule;
     
     // Spy on the writeToLog method
     const logger = SessionLogger.getInstance();
@@ -84,9 +87,10 @@ describe('SessionLogger', () => {
     expect(writeToLogSpy.mock.calls[0][0].content.text).toBe('First message');
   });
 
-  it('should track tool call status', () => {
+  it('should track tool call status', async () => {
     // Import the singleton after mocks are set up
-    const { SessionLogger } = require('./sessionLogger');
+    const sessionLoggerModule = await import('./sessionLogger.js');
+    const { SessionLogger } = sessionLoggerModule;
     
     // Get the instance
     const logger = SessionLogger.getInstance();

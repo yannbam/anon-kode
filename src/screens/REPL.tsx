@@ -184,20 +184,25 @@ export function REPL({
 
   useEffect(() => {
     if (forkConvoWithMessagesOnTheNextRender) {
-      // Import here to avoid circular dependency
-      const { sessionLogger } = require('../utils/sessionLogger');
-      const { getGlobalConfig } = require('../utils/config');
+      // Need to use an async IIFE to handle dynamic import
+      (async () => {
+        // Import here to avoid circular dependency - proper ES Module dynamic import
+        const sessionLoggerModule = await import('../utils/sessionLogger.js');
+        const configModule = await import('../utils/config.js');
+        const { sessionLogger } = sessionLoggerModule;
+        const { getGlobalConfig } = configModule;
       
-      const newForkNumber = forkNumber + 1;
+        const newForkNumber = forkNumber + 1;
       
-      // Log the fork event
-      if (getGlobalConfig().enableSessionLogging) {
-        sessionLogger.logFork(newForkNumber, 'User requested fork (escape to undo)');
-      }
+        // Log the fork event
+        if (getGlobalConfig().enableSessionLogging) {
+          sessionLogger.logFork(newForkNumber, 'User requested fork (escape to undo)');
+        }
       
-      setForkNumber(newForkNumber)
-      setForkConvoWithMessagesOnTheNextRender(null)
-      setMessages(forkConvoWithMessagesOnTheNextRender)
+        setForkNumber(newForkNumber)
+        setForkConvoWithMessagesOnTheNextRender(null)
+        setMessages(forkConvoWithMessagesOnTheNextRender)
+      })();
     }
   }, [forkConvoWithMessagesOnTheNextRender, forkNumber])
 

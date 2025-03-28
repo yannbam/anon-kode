@@ -289,9 +289,11 @@ export async function* runToolUse(
   toolUseContext: ToolUseContext,
   shouldSkipPermissionCheck?: boolean,
 ): AsyncGenerator<Message, void> {
-  // Import here to avoid circular dependency
-  const { sessionLogger } = require('./utils/sessionLogger');
-  const { getGlobalConfig } = require('./utils/config');
+  // Import here to avoid circular dependency - proper ES Module dynamic import
+  const sessionLoggerModule = await import('./utils/sessionLogger.js');
+  const configModule = await import('./utils/config.js');
+  const { sessionLogger } = sessionLoggerModule;
+  const { getGlobalConfig } = configModule;
   
   const toolName = toolUse.name
   const tool = toolUseContext.options.tools.find(t => t.name === toolName)
@@ -475,9 +477,11 @@ async function* checkPermissionsAndCallTool(
             toolName: tool.name,
           })
           
-          // Import here to avoid circular dependency
-          const { sessionLogger } = require('./utils/sessionLogger');
-          const { getGlobalConfig } = require('./utils/config');
+          // Import here to avoid circular dependency - proper ES Module dynamic import
+          const sessionLoggerModule = await import('./utils/sessionLogger.js');
+          const configModule = await import('./utils/config.js');
+          const { sessionLogger } = sessionLoggerModule;
+          const { getGlobalConfig } = configModule;
           
           // Log successful tool result
           if (getGlobalConfig().enableSessionLogging) {
@@ -529,9 +533,11 @@ async function* checkPermissionsAndCallTool(
       toolInput: JSON.stringify(input).slice(0, 1000),
     })
     
-    // Import here to avoid circular dependency
-    const { sessionLogger } = require('./utils/sessionLogger');
-    const { getGlobalConfig } = require('./utils/config');
+    // Import here to avoid circular dependency - proper ES Module dynamic import
+    const sessionLoggerModule = await import('./utils/sessionLogger.js');
+    const configModule = await import('./utils/config.js');
+    const { sessionLogger } = sessionLoggerModule;
+    const { getGlobalConfig } = configModule;
     
     // Log tool error
     if (getGlobalConfig().enableSessionLogging) {
