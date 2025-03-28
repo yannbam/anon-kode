@@ -35,7 +35,7 @@ import type { ChatCompletionStream } from 'openai/lib/ChatCompletionStream'
 import { ContentBlock } from '@anthropic-ai/sdk/resources/messages/messages'
 import { nanoid } from 'nanoid'
 import { getCompletion } from './openai'
-import { getReasoningEffort } from 'utils/thinking'
+import { getReasoningEffort } from '../utils/thinking'
 
 
 interface StreamResponse extends APIMessage {
