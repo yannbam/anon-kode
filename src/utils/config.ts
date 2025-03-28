@@ -86,6 +86,11 @@ export type NotificationChannel =
   | 'iterm2_with_bell'
   | 'notifications_disabled'
 
+export type LoggingMode =
+  | 'formatted'
+  | 'raw'
+  | 'both'
+
 export type ProviderType =
   | 'anthropic'
   | 'openai'
@@ -147,6 +152,7 @@ export type GlobalConfig = {
   // Comprehensive session logging options
   enableSessionLogging?: boolean
   sessionLogPath?: string
+  sessionLoggingMode?: LoggingMode
 }
 
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
@@ -163,6 +169,7 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   stream: true,
   enableSessionLogging: false,
   sessionLogPath: '.KODING-LOGS',
+  sessionLoggingMode: 'formatted',
 }
 
 export const GLOBAL_CONFIG_KEYS = [
@@ -180,6 +187,7 @@ export const GLOBAL_CONFIG_KEYS = [
   'maxTokens',
   'enableSessionLogging',
   'sessionLogPath',
+  'sessionLoggingMode',
 ] as const
 
 export type GlobalConfigKey = (typeof GLOBAL_CONFIG_KEYS)[number]

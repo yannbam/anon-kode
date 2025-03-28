@@ -8,6 +8,7 @@ import {
   saveGlobalConfig,
   normalizeApiKeyForConfig,
   ProviderType,
+  LoggingMode,
   addApiKey,
   removeApiKey,
   getApiKeys,
@@ -77,29 +78,6 @@ export function Config({ onClose }: Props): React.ReactNode {
   // TODO: Add MCP servers
   const settings: Setting[] = [
     // Global settings
-    {
-      id: 'enableSessionLogging',
-      label: 'Enable Session Logging',
-      value: globalConfig.enableSessionLogging ?? false,
-      type: 'boolean',
-      onChange(enableSessionLogging: boolean) {
-        const config = { ...getGlobalConfig(), enableSessionLogging }
-        saveGlobalConfig(config)
-        setGlobalConfig(config)
-      },
-    },
-    {
-      id: 'sessionLogPath',
-      label: 'Session Log Path',
-      value: globalConfig.sessionLogPath ?? '.KODING-LOGS',
-      type: 'string',
-      disabled: !(globalConfig.enableSessionLogging ?? false),
-      onChange(sessionLogPath: string) {
-        const config = { ...getGlobalConfig(), sessionLogPath }
-        saveGlobalConfig(config)
-        setGlobalConfig(config)
-      },
-    },
     {
       id: 'provider',
       label: 'AI Provider',
@@ -309,6 +287,43 @@ export function Config({ onClose }: Props): React.ReactNode {
           ...getGlobalConfig(),
           preferredNotifChannel: notifChannel,
         }
+        saveGlobalConfig(config)
+        setGlobalConfig(config)
+      },
+    },
+    // Logging settings
+    {
+      id: 'enableSessionLogging',
+      label: 'Enable Session Logging',
+      value: globalConfig.enableSessionLogging ?? false,
+      type: 'boolean',
+      onChange(enableSessionLogging: boolean) {
+        const config = { ...getGlobalConfig(), enableSessionLogging }
+        saveGlobalConfig(config)
+        setGlobalConfig(config)
+      },
+    },
+    {
+      id: 'sessionLoggingMode',
+      label: 'Logging Mode',
+      value: globalConfig.sessionLoggingMode ?? 'formatted',
+      options: ['formatted', 'raw', 'both'],
+      type: 'enum',
+      disabled: !(globalConfig.enableSessionLogging ?? false),
+      onChange(sessionLoggingMode: LoggingMode) {
+        const config = { ...getGlobalConfig(), sessionLoggingMode }
+        saveGlobalConfig(config)
+        setGlobalConfig(config)
+      },
+    },
+    {
+      id: 'sessionLogPath',
+      label: 'Session Log Path',
+      value: globalConfig.sessionLogPath ?? '.KODING-LOGS',
+      type: 'string',
+      disabled: !(globalConfig.enableSessionLogging ?? false),
+      onChange(sessionLogPath: string) {
+        const config = { ...getGlobalConfig(), sessionLogPath }
         saveGlobalConfig(config)
         setGlobalConfig(config)
       },
