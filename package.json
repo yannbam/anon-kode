@@ -2,7 +2,7 @@
   "name": "anon-kode",
   "version": "0.0.46",
   "bin": {
-    "kode": "cli.mjs"
+    "kode": "cli-launcher.mjs"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -20,12 +20,13 @@
     "url": "https://github.com/dnakov/anon-kode/issues"
   },
   "files": [
-    "cli.mjs",
-    "yoga.wasm"
+    "cli-launcher.mjs",
+    "yoga.wasm",
+    "src"
   ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx --verbose",
-    "build": "bun build src/entrypoints/cli.tsx --minify --outfile cli.mjs --target=node"
+    "build": "chmod +x cli-launcher.mjs"
   },
   "optionalDependencies": {
     "@img/sharp-darwin-arm64": "^0.33.5",
@@ -76,6 +77,7 @@
   },
   "devDependencies": {
     "react-devtools-core": "^6.1.1",
-    "tsx": "^4.19.3"
+    "tsx": "^3.12.10",
+    "typescript": "^5.4.5"
   }
 }
