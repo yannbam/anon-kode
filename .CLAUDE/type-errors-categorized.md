@@ -37,6 +37,6 @@
 1. Most errors are related to React component typing
 2. Many errors stem from Tool interface definition issues
 3. Some errors are from dependencies (sharp, etc.)
-4. The bundler moduleResolution helps with imports but doesn't fix type errors
+4. Our hybrid approach with bundler moduleResolution helps with imports but exposes type errors that were previously overlooked
 
-These errors are suppressed by our build-temp.js script, allowing the build to complete despite the type errors. This approach is working for development but should be cleaned up eventually for production.
+These errors are suppressed by our build-temp.js script, allowing the build to complete despite the type errors. Our hybrid approach is intentional and working for development, but the type errors should be cleaned up for production.
