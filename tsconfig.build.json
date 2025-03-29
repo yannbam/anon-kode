@@ -6,8 +6,8 @@
     "declaration": false,
     "declarationMap": false,
     "noEmit": false,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "types": ["node"],
     "esModuleInterop": true,
     "resolveJsonModule": true
