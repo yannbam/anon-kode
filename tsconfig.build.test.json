@@ -1,3 +1,10 @@
+/*
+ * TEMPORARY BUILD CONFIGURATION
+ * 
+ * This configuration file relaxes type checking to allow building
+ * despite TypeScript errors. It's a temporary solution until
+ * all type errors are fixed throughout the codebase.
+ */
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {

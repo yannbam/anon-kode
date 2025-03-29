@@ -1,4 +1,16 @@
 #!/usr/bin/env node
+/*
+ * TEMPORARY BUILD HELPER
+ * 
+ * This script fixes ES module imports in compiled JS files by adding .js extensions
+ * and fixing .tsx.js extensions to just .js. It's needed because TypeScript doesn't
+ * automatically add these extensions in ESM mode.
+ * 
+ * This is a temporary solution until TypeScript has better ESM support or
+ * all import paths are properly handled at the source level.
+ * 
+ * Usage: node fix-imports.js
+ */
 import { readdir, readFile, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
 

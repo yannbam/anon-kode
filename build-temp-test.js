@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+/*
+ * TEMPORARY BUILD TOOL
+ * 
+ * This script allows building the project despite type errors.
+ * It's a temporary solution until all TypeScript errors are fixed.
+ * 
+ * Usage: node build-temp-test.js
+ */
 import { spawn } from 'child_process';
 
 // Run tsc with force option and ignore all errors
