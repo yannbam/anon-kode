@@ -4,9 +4,10 @@
 The anon-kode project has been updated to use proper module resolution with a bundler approach. The build process now uses TypeScript with ESM support, but there are many type errors that are currently suppressed to allow the build to complete. Your task is to systematically fix these errors.
 
 ## Current Setup
-- Project uses TypeScript with `moduleResolution: "bundler"` and `module: "ESNext"`
-- Has `"type": "module"` in package.json for ESM support
+- Project uses a hybrid approach with TypeScript using `moduleResolution: "bundler"` and `module: "ES2022"`
+- Has `"type": "module"` in package.json for ESM support where needed
 - A custom build script (build-temp.js) allows build to complete despite type errors
+- The bundler module resolution exposes type errors that were previously overlooked
 - The project is structured as a React application using Ink for terminal UI
 
 ## Step 1: Fix Tool Interface Issues

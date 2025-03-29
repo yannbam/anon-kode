@@ -1,7 +1,7 @@
 # Module System Plan
 
 ## Background
-The codebase is in a transitional state regarding ECMAScript Modules (ESM):
+The codebase uses a hybrid approach to ECMAScript Modules (ESM):
 - Package is set to ESM mode with `"type": "module"` in package.json
 - Some files have been updated to use explicit `.js` extensions (especially logging-related files)
 - Most files don't have explicit extensions in import paths
@@ -12,9 +12,9 @@ The codebase is in a transitional state regarding ECMAScript Modules (ESM):
 - ✅ Created build-temp.js script to complete build even with type errors
 - ✅ Verified successful build and output in dist directory
 
-## Decision: No Full ESM Transition Needed
+## Decision: Hybrid Approach with Bundler Module Resolution
 
-After analysis, we discovered that a full ESM transition would require updating over 1,140 imports with `.js` extensions, which would be excessive work with little benefit. The current bundler-based approach provides:
+We've intentionally chosen a hybrid approach using the bundler module resolution system. A full ESM transition would require updating over 1,140 imports with `.js` extensions, which would be excessive work with little benefit. The current approach provides:
 
 1. **Full ESM compatibility** - Package remains a proper ESM package with `"type": "module"`
 2. **Clean import syntax** - No need for verbose `.js` extensions in imports
