@@ -732,6 +732,9 @@ export function createStreamProcessor(
             new Error(`Stream processing error: ${e.message || 'Unknown error'}`),
             0
           );
+          
+          // Also try to log any buffered chunks even in error case
+          rawLogger.logApiStreamComplete('openai', requestId);
         } catch (logError) {
           console.error('Failed to log stream error:', logError);
         }

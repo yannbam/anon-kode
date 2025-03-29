@@ -489,7 +489,7 @@ export class RawLogger {
     
     // Create buffer for this request if it doesn't exist
     if (!this.streamChunkBuffers.has(requestId)) {
-      console.debug(`[RawLogger] Creating new buffer for request ${requestId}`);
+      // Create a new buffer without logging to console
       this.streamChunkBuffers.set(requestId, []);
     }
     
@@ -512,8 +512,9 @@ export class RawLogger {
           data: safeChunk
         });
         
-        console.debug(`[RawLogger] Buffered chunk ${index} for request ${requestId}, buffer size: ${buffer.length}`);
+        // No debug logging to console to avoid cluttering the CLI
       } catch (err) {
+        // Only log errors, not debug info
         console.error(`Failed to buffer stream chunk for ${requestId}:`, err);
       }
     }
@@ -526,11 +527,8 @@ export class RawLogger {
     // Check if we have any buffered chunks for this request
     const buffer = this.streamChunkBuffers.get(requestId);
     if (!buffer || buffer.length === 0) {
-      console.debug(`[RawLogger] No buffered chunks found for request ${requestId} at completion`);
       return;
     }
-    
-    console.debug(`[RawLogger] Logging ${buffer.length} buffered chunks for request ${requestId}`);
     
     try {
       // Log all chunks as a single entry
@@ -542,14 +540,11 @@ export class RawLogger {
         chunk_count: buffer.length,
         chunks: buffer
       });
-      
-      console.debug(`[RawLogger] Successfully logged all chunks for request ${requestId}`);
     } catch (err) {
       console.error(`Failed to write stream chunks to log for ${requestId}:`, err);
     } finally {
       // Always clean up buffer
       this.streamChunkBuffers.delete(requestId);
-      console.debug(`[RawLogger] Cleared buffer for request ${requestId}`);
     }
   }
 }

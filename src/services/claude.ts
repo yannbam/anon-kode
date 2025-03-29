@@ -864,6 +864,8 @@ async function queryOpenAI(
             try {
               const durationMs = Date.now() - requestStartTime;
               rawLogger.logApiError('openai', requestId, error, durationMs);
+              // Still attempt to log any collected chunks before the error
+              rawLogger.logApiStreamComplete('openai', requestId);
             } catch (logError) {
               console.error('Failed to log stream error:', logError);
             }
