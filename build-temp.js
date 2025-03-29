@@ -2,7 +2,7 @@
 import { spawn } from 'child_process';
 
 // Run tsc with force option
-const tsc = spawn('tsc', ['-p', 'tsconfig.build.json', '--skipLibCheck'], {
+const tsc = spawn('npx', ['tsc', '-p', 'tsconfig.build.json', '--skipLibCheck'], {
   stdio: 'pipe',
   shell: true
 });
