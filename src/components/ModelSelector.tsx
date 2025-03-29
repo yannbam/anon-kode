@@ -327,6 +327,10 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
     const modelInfo = availableModels.find(m => m.model === model)
     setSupportsReasoningEffort(modelInfo?.supports_reasoning_effort || false)
     
+    if(!modelInfo?.supports_reasoning_effort) {
+      setReasoningEffort(null)
+    }
+
     // Prepopulate max tokens with the model's default value if available
     if (modelInfo?.max_tokens) {
       setMaxTokens(modelInfo.max_tokens.toString())

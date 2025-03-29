@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.0.48]
+- reset null reasoning effort if model doesn't support it
+
+## [v0.0.47]
+- more null checks
+
 ## [v0.0.46]
 - null check for no api keys required
 
