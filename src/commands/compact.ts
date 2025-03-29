@@ -72,6 +72,12 @@ const compact = {
       cache_read_input_tokens: 0,
     }
 
+    // Import session logger here to avoid circular dependency - proper ES Module dynamic import
+    const sessionLoggerModule = await import('../utils/sessionLogger.js');
+    const configModule = await import('../utils/config.js');
+    const { sessionLogger } = sessionLoggerModule;
+    const { getGlobalConfig } = configModule;
+    
     // Clear screen and messages
     await clearTerminal()
     getMessagesSetter()([])
@@ -83,6 +89,11 @@ const compact = {
     ])
     getContext.cache.clear?.()
     getCodeStyle.cache.clear?.()
+    
+    // Log the compact command with the summary
+    if (getGlobalConfig().enableSessionLogging) {
+      sessionLogger.logContextChange('compact', summary);
+    }
 
     return '' // not used, just for typesafety. TODO: avoid this hack
   },

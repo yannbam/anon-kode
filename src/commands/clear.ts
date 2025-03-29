@@ -11,12 +11,23 @@ export async function clearConversation(context: {
     forkConvoWithMessages: Message[],
   ) => void
 }) {
+  // Import session logger here to avoid circular dependency - proper ES Module dynamic import
+  const sessionLoggerModule = await import('../utils/sessionLogger.js');
+  const configModule = await import('../utils/config.js');
+  const { sessionLogger } = sessionLoggerModule;
+  const { getGlobalConfig } = configModule;
+  
   await clearTerminal()
   getMessagesSetter()([])
   context.setForkConvoWithMessagesOnTheNextRender([])
   getContext.cache.clear?.()
   getCodeStyle.cache.clear?.()
   await setCwd(getOriginalCwd())
+  
+  // Log the clear command
+  if (getGlobalConfig().enableSessionLogging) {
+    sessionLogger.logContextChange('clear');
+  }
 }
 
 const clear = {
