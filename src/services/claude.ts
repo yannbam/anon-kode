@@ -845,13 +845,19 @@ async function queryOpenAI(
         const wrappedStream = (async function* () {
           try {
             for await (const chunk of originalStream) {
-              // Log each chunk
+              // Buffer each chunk (not logging immediately)
               try {
                 rawLogger.logApiStreamChunk('openai', requestId, chunk, chunkIndex++);
               } catch (logError) {
-                console.error('Failed to log stream chunk:', logError);
+                console.error('Failed to buffer stream chunk:', logError);
               }
               yield chunk;
+            }
+            // Log all chunks as one entry when stream is complete
+            try {
+              rawLogger.logApiStreamComplete('openai', requestId);
+            } catch (logError) {
+              console.error('Failed to log complete stream:', logError);
             }
           } catch (error) {
             // Log stream error

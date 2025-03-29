@@ -458,15 +458,22 @@ export async function getCompletion(
               }
             }
             
-            // Log the chunk
+            // Buffer the chunk (not logging immediately)
             try {
               rawLogger.logApiStreamChunk('openai', requestId, chunk, chunkIndex++);
             } catch (logError) {
-              console.error('Failed to log stream chunk:', logError);
+              console.error('Failed to buffer stream chunk:', logError);
             }
             
             // Only yield good chunks
             yield chunk
+          }
+          
+          // Log all chunks as one entry when stream is complete
+          try {
+            rawLogger.logApiStreamComplete('openai', requestId);
+          } catch (logError) {
+            console.error('Failed to log complete stream:', logError);
           }
         } catch (e) {
           console.error('Error in stream processing:', e.message)

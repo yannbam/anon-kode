@@ -315,6 +315,8 @@ export class RawLogger {
   private logFile: string | null = null;
   private enabled: boolean = false;
   private loggingMode: string = 'formatted';
+  // Buffer to store stream chunks by request ID
+  private streamChunkBuffers: Map<string, any[]> = new Map();
 
   private constructor() {
     this.initialize();
@@ -407,6 +409,9 @@ export class RawLogger {
   public logApiRequest(provider: string, requestId: string, endpoint: string, method: string, headers: any, body: any): void {
     if (!this.enabled) return;
     
+    // Clear any existing buffer for this request ID (in case of retries)
+    this.streamChunkBuffers.delete(requestId);
+    
     this.writeToLog({
       timestamp: this.getCurrentTimestamp(),
       type: 'api_request',
@@ -437,6 +442,9 @@ export class RawLogger {
         duration_ms: durationMs
       }
     });
+    
+    // Clean up any buffered chunks that weren't flushed
+    this.streamChunkBuffers.delete(requestId);
   }
 
   // Log API error
@@ -454,20 +462,53 @@ export class RawLogger {
         duration_ms: durationMs
       }
     });
+    
+    // Clean up any buffered chunks for this request
+    this.streamChunkBuffers.delete(requestId);
   }
 
-  // Log API stream chunk
+  // Buffer API stream chunk (don't log immediately)
   public logApiStreamChunk(provider: string, requestId: string, chunk: any, index: number): void {
     if (!this.enabled) return;
     
+    // Create buffer for this request if it doesn't exist
+    if (!this.streamChunkBuffers.has(requestId)) {
+      this.streamChunkBuffers.set(requestId, []);
+    }
+    
+    // Add chunk to buffer
+    const buffer = this.streamChunkBuffers.get(requestId);
+    if (buffer) {
+      buffer.push({
+        timestamp: this.getCurrentTimestamp(),
+        index,
+        data: chunk
+      });
+    }
+  }
+  
+  // Log all buffered stream chunks as one entry
+  public logApiStreamComplete(provider: string, requestId: string): void {
+    if (!this.enabled) return;
+    
+    // Check if we have any buffered chunks for this request
+    const buffer = this.streamChunkBuffers.get(requestId);
+    if (!buffer || buffer.length === 0) {
+      return;
+    }
+    
+    // Log all chunks as a single entry
     this.writeToLog({
       timestamp: this.getCurrentTimestamp(),
-      type: 'api_stream_chunk',
+      type: 'api_stream_chunks',
       provider,
       request_id: requestId,
-      chunk_index: index,
-      data: chunk
+      chunk_count: buffer.length,
+      chunks: buffer
     });
+    
+    // Clean up buffer
+    this.streamChunkBuffers.delete(requestId);
   }
 }
 
