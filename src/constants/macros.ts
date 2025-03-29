@@ -1,6 +1,6 @@
-import { version } from '../../package.json'
+import pkg from '../../package.json' with { type: 'json' }
 
 export const MACRO = {
-  VERSION: version,
+  VERSION: pkg.version,
   README_URL: 'https://docs.anthropic.com/s/claude-code',
 }

@@ -36,6 +36,20 @@ Get some more logs while debugging:
 NODE_ENV=development pnpm run dev --verbose --debug
 ```
 
+### Build with Type Error Suppression
+
+Temporary build tools have been added to help build the project despite TypeScript errors:
+
+```
+# Build with type error suppression
+node build-temp-test.js
+
+# Standard build (will fail if type errors exist)
+pnpm run build
+```
+
+See `.CLAUDE/tool-interface-changes.md` for details on recent interface updates.
+
 ## BUGS
 
 You can submit a bug from within the app with `/bug`, it will open a browser to github issue create with stuff filed out.
