@@ -351,7 +351,7 @@ export class RawLogger {
       }
       
       // Create log file with timestamp and mode
-      const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\.+/, '');
+      const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
       this.logFile = path.join(logDirectory, `session-${timestamp}-${SESSION_ID}-raw.log`);
     }
   }
@@ -398,7 +398,23 @@ export class RawLogger {
     
     try {
       // Use JSON.stringify with null replacer to avoid any formatting changes
-      const rawData = JSON.stringify(data);
+      // Add a custom replacer to handle potentially circular references
+      const seen = new WeakSet();
+      const rawData = JSON.stringify(data, (key, value) => {
+        // Skip functions
+        if (typeof value === 'function') {
+          return undefined;
+        }
+        // Handle circular references
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) {
+            return '[Circular Reference]';
+          }
+          seen.add(value);
+        }
+        return value;
+      });
+      
       appendFileSync(this.logFile, `${rawData}\n`);
     } catch (err) {
       console.error(`Failed to write to raw log file: ${err}`);
@@ -473,17 +489,33 @@ export class RawLogger {
     
     // Create buffer for this request if it doesn't exist
     if (!this.streamChunkBuffers.has(requestId)) {
+      console.debug(`[RawLogger] Creating new buffer for request ${requestId}`);
       this.streamChunkBuffers.set(requestId, []);
     }
     
-    // Add chunk to buffer
+    // Add chunk to buffer - making a copy to avoid circular references
     const buffer = this.streamChunkBuffers.get(requestId);
     if (buffer) {
-      buffer.push({
-        timestamp: this.getCurrentTimestamp(),
-        index,
-        data: chunk
-      });
+      try {
+        // Safely serialize and deserialize to avoid circular references
+        const safeChunk = JSON.parse(JSON.stringify(chunk, (key, value) => {
+          // Skip functions and circular references
+          if (typeof value === 'function') {
+            return undefined;
+          }
+          return value;
+        }));
+        
+        buffer.push({
+          timestamp: this.getCurrentTimestamp(),
+          index,
+          data: safeChunk
+        });
+        
+        console.debug(`[RawLogger] Buffered chunk ${index} for request ${requestId}, buffer size: ${buffer.length}`);
+      } catch (err) {
+        console.error(`Failed to buffer stream chunk for ${requestId}:`, err);
+      }
     }
   }
   
@@ -494,21 +526,31 @@ export class RawLogger {
     // Check if we have any buffered chunks for this request
     const buffer = this.streamChunkBuffers.get(requestId);
     if (!buffer || buffer.length === 0) {
+      console.debug(`[RawLogger] No buffered chunks found for request ${requestId} at completion`);
       return;
     }
     
-    // Log all chunks as a single entry
-    this.writeToLog({
-      timestamp: this.getCurrentTimestamp(),
-      type: 'api_stream_chunks',
-      provider,
-      request_id: requestId,
-      chunk_count: buffer.length,
-      chunks: buffer
-    });
+    console.debug(`[RawLogger] Logging ${buffer.length} buffered chunks for request ${requestId}`);
     
-    // Clean up buffer
-    this.streamChunkBuffers.delete(requestId);
+    try {
+      // Log all chunks as a single entry
+      this.writeToLog({
+        timestamp: this.getCurrentTimestamp(),
+        type: 'api_stream_chunks',
+        provider,
+        request_id: requestId,
+        chunk_count: buffer.length,
+        chunks: buffer
+      });
+      
+      console.debug(`[RawLogger] Successfully logged all chunks for request ${requestId}`);
+    } catch (err) {
+      console.error(`Failed to write stream chunks to log for ${requestId}:`, err);
+    } finally {
+      // Always clean up buffer
+      this.streamChunkBuffers.delete(requestId);
+      console.debug(`[RawLogger] Cleared buffer for request ${requestId}`);
+    }
   }
 }
 
