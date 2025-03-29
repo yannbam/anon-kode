@@ -6,8 +6,9 @@
     "declaration": false,
     "declarationMap": false,
     "noEmit": false,
-    "module": "ES2022",
-    "moduleResolution": "bundler",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
     "types": ["node"]
   },
   "include": ["src/**/*"],
