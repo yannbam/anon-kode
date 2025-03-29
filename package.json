@@ -2,7 +2,7 @@
   "name": "anon-kode",
   "version": "0.0.48",
   "bin": {
-    "kode": "cli-launcher.mjs"
+    "kode": "bin/kode.js"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -20,13 +20,14 @@
     "url": "https://github.com/dnakov/anon-kode/issues"
   },
   "files": [
-    "cli-launcher.mjs",
-    "yoga.wasm",
-    "src"
+    "bin",
+    "dist",
+    "yoga.wasm"
   ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx --verbose",
-    "build": "chmod +x cli-launcher.mjs"
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build"
   },
   "optionalDependencies": {
     "@img/sharp-darwin-arm64": "^0.33.5",

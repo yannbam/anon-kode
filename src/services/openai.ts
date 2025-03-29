@@ -416,7 +416,7 @@ export async function getCompletion(
       }
       
       // Create a stream that checks for errors while still yielding chunks
-      const stream = createStreamProcessor(response.body as any)
+      const stream = createStreamProcessor(response.body as any, requestId)
       // Wrap the stream to log individual chunks
       let chunkIndex = 0;
       return (async function* errorAwareStream() {
@@ -601,8 +601,7 @@ export async function getCompletion(
 
 export function createStreamProcessor(
   stream: any,
-  requestId?: string,
-  logChunks: boolean = false
+  requestId?: string
 ): AsyncGenerator<OpenAI.ChatCompletionChunk, void, unknown> {
   if (!stream) {
     throw new Error("Stream is null or undefined")
@@ -614,17 +613,44 @@ export function createStreamProcessor(
     let buffer = ''
     
     try {
+      // Import dynamically to avoid circular dependencies
+      const { rawLogger } = await import('../utils/sessionLogger.js');
+      let chunkIndex = 0;
+      
       while (true) {
         let readResult;
         try {
           readResult = await reader.read();
         } catch (e) {
           console.error('Error reading from stream:', e);
+          
+          // Log the streaming error if we have a requestId
+          if (requestId) {
+            try {
+              rawLogger.logApiError(
+                'openai', 
+                requestId, 
+                new Error(`Stream reading error: ${e.message || 'Unknown error'}`),
+                0
+              );
+            } catch (logError) {
+              console.error('Failed to log stream error:', logError);
+            }
+          }
+          
           break;
         }
         
         const { done, value } = readResult;
         if (done) {
+          // Log stream completion if we have a requestId
+          if (requestId) {
+            try {
+              rawLogger.logApiStreamComplete('openai', requestId);
+            } catch (logError) {
+              console.error('Failed to log stream completion:', logError);
+            }
+          }
           break
         }
         
@@ -646,6 +672,16 @@ export function createStreamProcessor(
             
             try {
               const parsed = JSON.parse(data) as OpenAI.ChatCompletionChunk
+              
+              // Buffer the chunk if we have a requestId
+              if (requestId) {
+                try {
+                  rawLogger.logApiStreamChunk('openai', requestId, parsed, chunkIndex++);
+                } catch (logError) {
+                  console.error('Failed to buffer stream chunk:', logError);
+                }
+              }
+              
               yield parsed
             } catch (e) {
               console.error('Error parsing JSON:', data, e)
@@ -666,6 +702,16 @@ export function createStreamProcessor(
             
             try {
               const parsed = JSON.parse(data) as OpenAI.ChatCompletionChunk
+              
+              // Buffer the chunk if we have a requestId
+              if (requestId) {
+                try {
+                  rawLogger.logApiStreamChunk('openai', requestId, parsed, chunkIndex++);
+                } catch (logError) {
+                  console.error('Failed to buffer stream chunk:', logError);
+                }
+              }
+              
               yield parsed
             } catch (e) {
               console.error('Error parsing final JSON:', data, e)
@@ -675,9 +721,37 @@ export function createStreamProcessor(
       }
     } catch (e) {
       console.error('Unexpected error in stream processing:', e);
+      
+      // Log the error if we have a requestId
+      if (requestId) {
+        try {
+          const { rawLogger } = await import('../utils/sessionLogger.js');
+          rawLogger.logApiError(
+            'openai', 
+            requestId, 
+            new Error(`Stream processing error: ${e.message || 'Unknown error'}`),
+            0
+          );
+          
+          // Also try to log any buffered chunks even in error case
+          rawLogger.logApiStreamComplete('openai', requestId);
+        } catch (logError) {
+          console.error('Failed to log stream error:', logError);
+        }
+      }
     } finally {
       try {
         reader.releaseLock()
+        
+        // Ensure we always log stream completion if we have a requestId
+        if (requestId) {
+          try {
+            const { rawLogger } = await import('../utils/sessionLogger.js');
+            rawLogger.logApiStreamComplete('openai', requestId);
+          } catch (logError) {
+            console.error('Failed to log stream completion in finally block:', logError);
+          }
+        }
       } catch (e) {
         console.error('Error releasing reader lock:', e);
       }
@@ -686,7 +760,8 @@ export function createStreamProcessor(
 }
 
 export function streamCompletion(
-  stream: any
+  stream: any,
+  requestId?: string
 ): AsyncGenerator<OpenAI.ChatCompletionChunk, void, unknown> {
-  return createStreamProcessor(stream)
+  return createStreamProcessor(stream, requestId)
 }
