@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx --verbose",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node build-temp.js",
     "prepublishOnly": "npm run build"
   },
   "optionalDependencies": {
