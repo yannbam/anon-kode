@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.0.49]
+- @yannbam fix import path [81](https://github.com/dnakov/anon-kode/pull/81)
+
 ## [v0.0.48]
 - reset null reasoning effort if model doesn't support it
 

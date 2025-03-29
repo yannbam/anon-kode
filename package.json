@@ -1,6 +1,6 @@
 {
   "name": "anon-kode",
-  "version": "0.0.48",
+  "version": "0.0.49",
   "bin": {
     "kode": "bin/kode.js"
   },
