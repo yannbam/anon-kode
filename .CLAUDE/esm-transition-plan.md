@@ -8,7 +8,7 @@ The codebase uses a hybrid approach to ECMAScript Modules (ESM):
 
 ## Implemented Solution: Bundler ModuleResolution
 
-- ✅ Updated tsconfig.build.json to use `moduleResolution: "bundler"` and `module: "ESNext"`
+- ✅ Updated tsconfig.json and tsconfig.build.json to use `moduleResolution: "bundler"` and `module: "ES2022"`
 - ✅ Created build-temp.js script to complete build even with type errors
 - ✅ Verified successful build and output in dist directory
 
@@ -20,5 +20,4 @@ We've intentionally chosen a hybrid approach using the bundler module resolution
 2. **Clean import syntax** - No need for verbose `.js` extensions in imports
 3. **Build compatibility** - Works with the TypeScript compiler in modern projects
 
-Rather than undertaking this massive refactoring effort, we will maintain the current setup and address specific type errors as needed.
-
+Rather than undertaking a massive refactoring effort, we maintain this hybrid setup and address specific type errors as needed.
