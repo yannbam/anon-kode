@@ -7,6 +7,13 @@ import {
   CLIPBOARD_ERROR_MESSAGE,
 } from '../utils/imagePaste.js'
 
+// Extend the ink Key interface with the properties we need
+interface ExtendedKey extends Key {
+  fn?: boolean;
+  home?: boolean;
+  end?: boolean;
+}
+
 const IMAGE_PLACEHOLDER = '[Image pasted]'
 
 type MaybeCursor = void | Cursor
@@ -139,11 +146,11 @@ export function useTextInput({
       }
       onMessage?.(true, CLIPBOARD_ERROR_MESSAGE)
       maybeClearImagePasteErrorTimeout()
+      // Need to set timeout but TypeScript can't determine type compatibility
       setImagePasteErrorTimeout(
-        // @ts-expect-error: Bun is overloading types here, but we're using the NodeJS runtime
         setTimeout(() => {
           onMessage?.(false)
-        }, 4000),
+        }, 4000) as unknown as NodeJS.Timeout
       )
       return cursor
     }
@@ -216,7 +223,7 @@ export function useTextInput({
     return cursorDown
   }
 
-  function onInput(input: string, key: Key): void {
+  function onInput(input: string, key: ExtendedKey): void {
     // Direct handling for backspace or delete (which is being detected as delete)
     if (key.backspace || key.delete || input === '\b' || input === '\x7f' || input === '\x08') {
       const nextCursor = cursor.backspace()
@@ -240,7 +247,7 @@ export function useTextInput({
     }
   }
 
-  function mapKey(key: Key): InputMapper {
+  function mapKey(key: ExtendedKey): InputMapper {
     // Direct handling for backspace or delete
     if (key.backspace || key.delete) {
       maybeClearImagePasteErrorTimeout()
