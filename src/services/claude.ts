@@ -2,6 +2,24 @@ import '@anthropic-ai/sdk/shims/node'
 import Anthropic, { APIConnectionError, APIError } from '@anthropic-ai/sdk'
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk'
+
+// Extended interfaces to match Anthropic implementation
+interface ExtendedAnthropicBedrock extends AnthropicBedrock {
+  apiKey?: string;
+  authToken?: string;
+  models?: any;
+  apiKeyAuth?: any;
+  bearerAuth?: any;
+}
+
+interface ExtendedAnthropicVertex extends AnthropicVertex {
+  apiKey?: string;
+  authToken?: string;
+  completions?: any;
+  models?: any;
+  apiKeyAuth?: any;
+  bearerAuth?: any;
+}
 import type { BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import chalk from 'chalk'
 import { createHash, randomUUID } from 'crypto'
@@ -433,12 +451,12 @@ function convertOpenAIResponseToAnthropic(response: OpenAI.ChatCompletion) {
   return finalMessage
 }
 
-let anthropicClient: Anthropic | null = null
+let anthropicClient: Anthropic | ExtendedAnthropicBedrock | ExtendedAnthropicVertex | null = null
 
 /**
  * Get the Anthropic client, creating it if it doesn't exist
  */
-export function getAnthropicClient(model?: string): Anthropic {
+export function getAnthropicClient(model?: string): Anthropic | ExtendedAnthropicBedrock | ExtendedAnthropicVertex {
   if (anthropicClient) {
     return anthropicClient
   }
@@ -460,7 +478,7 @@ export function getAnthropicClient(model?: string): Anthropic {
     timeout: parseInt(process.env.API_TIMEOUT_MS || String(60 * 1000), 10),
   }
   if (USE_BEDROCK) {
-    const client = new AnthropicBedrock(ARGS)
+    const client = new AnthropicBedrock(ARGS) as ExtendedAnthropicBedrock
     anthropicClient = client
     return client
   }
@@ -469,7 +487,7 @@ export function getAnthropicClient(model?: string): Anthropic {
       ...ARGS,
       region: region || process.env.CLOUD_ML_REGION || 'us-east5',
     }
-    const client = new AnthropicVertex(vertexArgs)
+    const client = new AnthropicVertex(vertexArgs) as ExtendedAnthropicVertex
     anthropicClient = client
     return client
   }
