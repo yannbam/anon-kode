@@ -14,6 +14,13 @@
    - Current version being used was v18.16.0, causing runtime errors
    - Solution: Use Node.js v22.14.0 which is already installed (via nvm)
 
+3. **React Rendering Issues (Fixed)**
+   - Problem: React warnings and errors when running `/cost` command
+   - First issue: "Each child in a list should have a unique key prop"
+   - Second issue: "Text string must be rendered inside <Text> component"
+   - Root cause: Runtime React rendering issues not caught by TypeScript
+   - Solution: Added proper key props and ensured text is wrapped in Ink <Text> components
+
 ## ESM Migration Verification Process
 
 Our testing approach successfully identified:
