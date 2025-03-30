@@ -284,9 +284,11 @@ async function readImage(
 }> {
   try {
     const stats = statSync(filePath)
-    const sharp = (
-      (await import('sharp')) as unknown as { default: typeof import('sharp') }
-    ).default
+    
+    // We have optional platform-specific sharp dependencies 
+    // Use type assertion for TypeScript without installing the main package
+    const sharpModule = await import('sharp' /* provided by @img platform-specific packages */);
+    const sharp = sharpModule.default;
     const image = sharp(readFileSync(filePath))
     const metadata = await image.metadata()
 
