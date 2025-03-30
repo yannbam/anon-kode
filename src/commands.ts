@@ -1,3 +1,4 @@
+import * as React from 'react'
 import bug from './commands/bug'
 import clear from './commands/clear'
 import compact from './commands/compact'
