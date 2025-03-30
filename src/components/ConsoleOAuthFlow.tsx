@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import * as React from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Static, Box, Text, useInput } from 'ink'
 import TextInput from './TextInput'
 import { OAuthService, createAndStoreApiKey } from '../services/oauth'
@@ -288,7 +289,7 @@ export function ConsoleOAuthFlow({ onDone }: Props): React.ReactNode {
   // We need to render the copy-able URL statically to prevent Ink <Text> from inserting
   // newlines in the middle of the URL (this breaks Safari). Because <Static> components are
   // only rendered once top-to-bottom, we also need to make everything above the URL static.
-  const staticItems: Record<string, JSX.Element> = {}
+  const staticItems: Record<string, React.ReactElement> = {}
   if (!isClearing) {
     staticItems.header = (
       <Box key="header" flexDirection="column" gap={1}>
@@ -315,9 +316,7 @@ export function ConsoleOAuthFlow({ onDone }: Props): React.ReactNode {
   }
   return (
     <Box flexDirection="column" gap={1}>
-      <Static items={Object.keys(staticItems)}>
-        {item => staticItems[item]}
-      </Static>
+      <Static items={Object.keys(staticItems)} children={item => staticItems[item]} />
       <Box paddingLeft={1} flexDirection="column" gap={1}>
         {renderStatusMessage()}
       </Box>

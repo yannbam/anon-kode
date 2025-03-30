@@ -5,7 +5,7 @@
     "kode": "bin/kode.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "type": "module",
   "author": "Anon Kode <anon@kode.com>",
@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx --verbose",
-    "build": "node build-temp.js",
+    "build": "node build.js",
     "prepublishOnly": "npm run build"
   },
   "optionalDependencies": {
@@ -78,7 +78,8 @@
   },
   "devDependencies": {
     "react-devtools-core": "^6.1.1",
-    "tsx": "^3.12.10",
+    "sharp": "^0.33.5",
+    "tsx": "^4.19.3",
     "typescript": "^5.4.5"
   }
 }

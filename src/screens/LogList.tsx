@@ -5,7 +5,8 @@ import type { LogOption, LogListProps } from '../types/logs'
 import { loadLogList } from '../utils/log'
 import { logError } from '../utils/log'
 
-type Props = LogListProps & {
+type Props = {
+  context: { unmount?: () => void };
   type: 'messages' | 'errors'
   logNumber?: number
 }

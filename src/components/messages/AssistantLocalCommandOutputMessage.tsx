@@ -20,20 +20,17 @@ export function AssistantLocalCommandOutputMessage({
   ].filter(Boolean)
 
   if (insides.length === 0) {
-    insides = [<Text key="0">(No output)</Text>]
+    // Use React.createElement to avoid key prop issues
+    insides = [React.createElement(Text, { children: "(No output)" }, "0")];
   }
 
   return [
-    <Box key="0" gap={1}>
-      <Box>
-        <Text color={theme.secondaryText}>{'  '}⎿ </Text>
-      </Box>
-      {insides.map((_, index) => (
-        <Box key={index} flexDirection="column">
-          {_}
-        </Box>
-      ))}
-    </Box>,
+    React.createElement(Box, { gap: 1, children: [
+      React.createElement(Box, { children: [
+        React.createElement(Text, { color: theme.secondaryText, children: '  ⎿ ' })
+      ] }),
+      ...insides.map((element, index) => React.createElement(Box, { flexDirection: "column", children: element }, index.toString()))
+    ]}, "0")
   ]
 }
 

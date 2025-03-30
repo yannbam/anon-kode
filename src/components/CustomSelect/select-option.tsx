@@ -1,38 +1,38 @@
-import figures from 'figures'
-import { Box, Text } from 'ink'
-import React, { type ReactNode } from 'react'
-import { type Theme } from './theme'
-import { useComponentTheme } from '@inkjs/ui'
+import * as React from 'react';
+import { Box, Text } from 'ink';
+import figures from 'figures';
+import { useComponentTheme } from '@inkjs/ui';
+import type { ComponentTheme } from '@inkjs/ui/build/theme';
 
-export type SelectOptionProps = {
+interface SelectOptionProps {
   /**
    * Determines if option is focused.
    */
-  readonly isFocused: boolean
+  readonly isFocused: boolean;
 
   /**
    * Determines if option is selected.
    */
-  readonly isSelected: boolean
+  readonly isSelected: boolean;
 
   /**
    * Determines if pointer is shown when selected
    */
-  readonly smallPointer?: boolean
+  readonly smallPointer?: boolean;
 
   /**
    * Option label.
    */
-  readonly children: ReactNode
+  readonly children: React.ReactNode;
 }
 
-export function SelectOption({
+export const SelectOption: React.FC<SelectOptionProps> = ({
   isFocused,
   isSelected,
   smallPointer,
   children,
-}: SelectOptionProps) {
-  const { styles } = useComponentTheme<Theme>('Select')
+}) => {
+  const { styles } = useComponentTheme<ComponentTheme>('Select');
 
   return (
     <Box {...styles.option({ isFocused })}>
@@ -48,5 +48,5 @@ export function SelectOption({
         <Text {...styles.selectedIndicator()}>{figures.tick}</Text>
       )}
     </Box>
-  )
-}
+  );
+};

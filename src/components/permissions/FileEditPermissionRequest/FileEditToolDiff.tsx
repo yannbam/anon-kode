@@ -55,19 +55,20 @@ export function FileEditToolDiff({
           </Text>
         </Box>
         {intersperse(
-          patch.map(_ => (
-            <StructuredDiff
-              key={_.newStart}
-              patch={_}
-              dim={false}
-              width={width}
-            />
-          )),
-          i => (
-            <Text color={getTheme().secondaryText} key={`ellipsis-${i}`}>
-              ...
-            </Text>
+          patch.map(_ => 
+            // Use React.createElement to avoid key prop type issues
+            React.createElement(StructuredDiff, {
+              patch: _,
+              dim: false,
+              width: width
+            }, _.newStart)
           ),
+          i => 
+            // Use React.createElement for Text component
+            React.createElement(Text, {
+              color: getTheme().secondaryText,
+              children: '...'
+            }, `ellipsis-${i}`)
         )}
       </Box>
     </Box>

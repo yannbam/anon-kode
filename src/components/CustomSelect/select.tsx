@@ -1,7 +1,7 @@
 import { Box, Text } from 'ink'
 import React, { type ReactNode } from 'react'
 import { SelectOption } from './select-option'
-import { type Theme } from './theme'
+import { type ComponentTheme } from '@inkjs/ui/build/theme'
 import { useSelectState } from './use-select-state'
 import { useSelect } from './use-select'
 import { Option, useComponentTheme } from '@inkjs/ui'
@@ -94,7 +94,7 @@ export function Select({
 
   useSelect({ isDisabled, state })
 
-  const { styles } = useComponentTheme<Theme>('Select')
+  const { styles } = useComponentTheme<ComponentTheme>('Select')
 
   return (
     <Box {...styles.container()}>

@@ -15,7 +15,9 @@ export type CommandPrefixResult =
 
 // Command prefix result alongside subcommand prefixes
 export type CommandSubcommandPrefixResult = CommandPrefixResult & {
-  subcommandPrefixes: Map<string, CommandPrefixResult>
+  subcommandPrefixes: Map<string, CommandPrefixResult>;
+  // Ensure commandPrefix is explicitly available on this type
+  commandPrefix?: string | null;
 }
 
 /**

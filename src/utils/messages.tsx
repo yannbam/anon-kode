@@ -286,7 +286,7 @@ export async function processUserInput(
       newMessages[0]!.type === 'user' &&
       newMessages[1]!.type === 'assistant' &&
       typeof newMessages[1]!.message.content === 'string' &&
-      // @ts-expect-error: TODO: this is probably a bug
+      typeof newMessages[1]!.message.content === 'string' &&
       newMessages[1]!.message.content.startsWith('Unknown command:')
     ) {
       logEvent('tengu_input_slash_invalid', { input })
@@ -335,6 +335,27 @@ export async function processUserInput(
   return [userMessage]
 }
 
+// Utility function to ensure context has required properties for command calls
+function adaptContextForCommand(context: ToolUseContext & {
+  setForkConvoWithMessagesOnTheNextRender: (forkConvoWithMessages: Message[]) => void
+}) {
+  // Ensure all required properties exist
+  return {
+    options: {
+      commands: context.options.commands || [],
+      tools: context.options.tools,
+      slowAndCapableModel: context.options.slowAndCapableModel || '',
+      // Preserve other options
+      ...context.options,
+    },
+    abortController: context.abortController,
+    messageId: context.messageId,
+    readFileTimestamps: context.readFileTimestamps,
+    setToolJSX: context.setToolJSX,
+    setForkConvoWithMessagesOnTheNextRender: context.setForkConvoWithMessagesOnTheNextRender,
+  };
+}
+
 async function getMessagesForSlashCommand(
   commandName: string,
   args: string,
@@ -377,7 +398,7 @@ async function getMessagesForSlashCommand(
         <command-args>${args}</command-args>`)
 
         try {
-          const result = await command.call(args, context)
+          const result = await command.call(args, adaptContextForCommand(context))
 
           return [
             userMessage,

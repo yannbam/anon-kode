@@ -18,7 +18,7 @@ import {
   NotebookCellSourceOutput,
   NotebookCellOutput,
   NotebookCellType,
-} from '../../types/notebook.js'
+} from '../../types/notebook/index'
 import { formatOutput } from '../BashTool/utils'
 import { getCwd } from '../../utils/state'
 import { findSimilarFile } from '../../utils/file'

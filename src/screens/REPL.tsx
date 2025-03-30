@@ -556,12 +556,10 @@ export function REPL({
 
   return (
     <>
-      <Static
-        key={`static-messages-${forkNumber}`}
-        items={messagesJSX.filter(_ => _.type === 'static')}
-      >
-        {_ => _.jsx}
-      </Static>
+      {/* Use wrapping div to handle the key */}
+      <div>
+        <Static items={messagesJSX.filter(_ => _.type === 'static')} children={(item: {jsx: React.ReactNode}) => item.jsx} />
+      </div>
       {messagesJSX.filter(_ => _.type === 'transient').map(_ => _.jsx)}
       <Box
         borderColor="red"

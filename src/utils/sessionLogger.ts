@@ -5,43 +5,27 @@ import { getGlobalConfig } from './config.js';
 import { SESSION_ID } from './log.js';
 import { getCwd } from './state.js';
 
-// Type definitions for message items
-export interface LoggedItem {
-  timestamp: string;
-  type: string;
-  model?: string;
-  content: any;
-}
+// Import types from the dedicated types module
+import {
+  LoggedItem,
+  ToolCall,
+  UserMessage,
+  AssistantMessage,
+  CommandExecution,
+  ForkEvent,
+  ContextChange
+} from '../types/logs/index.js';
 
-export interface ToolCall extends LoggedItem {
-  tool: string;
-  input: any;
-  output?: any;
-  status: 'pending' | 'success' | 'error' | 'canceled';
-}
-
-export interface UserMessage extends LoggedItem {
-  text: string;
-}
-
-export interface AssistantMessage extends LoggedItem {
-  text: string | any[];
-}
-
-export interface CommandExecution extends LoggedItem {
-  command: string;
-  args?: any;
-}
-
-export interface ForkEvent extends LoggedItem {
-  newForkId: number;
-  reason: string;
-}
-
-export interface ContextChange extends LoggedItem {
-  action: 'clear' | 'compact';
-  summary?: string;
-}
+// Re-export types for backward compatibility
+export type {
+  LoggedItem,
+  ToolCall,
+  UserMessage,
+  AssistantMessage,
+  CommandExecution,
+  ForkEvent,
+  ContextChange
+};
 
 // Class for managing session logs
 export class SessionLogger {

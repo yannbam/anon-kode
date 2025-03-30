@@ -2,7 +2,7 @@ import * as React from 'react'
 import { captureException } from '../services/sentry'
 
 interface Props {
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 interface State {
@@ -10,6 +10,11 @@ interface State {
 }
 
 export class SentryErrorBoundary extends React.Component<Props, State> {
+  // Explicitly declare props to help TypeScript understand the type
+  readonly props: Readonly<Props>;
+  // Explicitly declare state to help TypeScript understand the type
+  state: State = { hasError: false };
+  
   constructor(props: Props) {
     super(props)
     this.state = { hasError: false }
@@ -28,6 +33,6 @@ export class SentryErrorBoundary extends React.Component<Props, State> {
       return null
     }
 
-    return this.props.children
+    return this.props.children || null
   }
 }
