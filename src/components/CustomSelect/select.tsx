@@ -1,7 +1,7 @@
 import { Box, Text } from 'ink'
 import React, { type ReactNode } from 'react'
 import { SelectOption } from './select-option'
-import { type Theme } from './theme'
+import { type Theme } from '../../../src/utils/theme'
 import { useSelectState } from './use-select-state'
 import { useSelect } from './use-select'
 import { Option, useComponentTheme } from '@inkjs/ui'
