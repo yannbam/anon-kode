@@ -35,3 +35,16 @@ export interface ContextChange extends LoggedItem {
   action: 'clear' | 'compact';
   summary?: string;
 }
+
+// Add missing types
+export interface LogOption {
+  enabled: boolean;
+  mode: 'formatted' | 'raw' | 'both';
+  path: string;
+}
+
+export interface SerializedMessage {
+  id: string;
+  content: any;
+  // Add other properties as needed
+}

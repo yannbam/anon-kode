@@ -1,6 +1,6 @@
-import React from 'react'
+import * as React from 'react'
 import { memoize } from 'lodash-es'
-import chalk from 'chalk'
+import * as chalk from 'chalk'
 import {
   StatsigClient,
   StatsigOptions,
