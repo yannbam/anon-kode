@@ -505,7 +505,7 @@ ${commandList}`,
     .action(async ({ cwd, global }) => {
       await setup(cwd, false)
       console.log(
-        JSON.stringify(listConfigForCLI((global as true) ?? false), null, 2),
+        JSON.stringify(global ? listConfigForCLI(true) : listConfigForCLI(false), null, 2),
       )
       process.exit(0)
     })
@@ -952,7 +952,7 @@ ${commandList}`,
           function ClaudeDesktopImport() {
             const { useState } = reactModule;
             const [isFinished, setIsFinished] = useState(false);
-            const [importResults, setImportResults] = useState<{name: string, success: boolean}[]>([]);
+            const [importResults, setImportResults] = useState([]);
             const [isImporting, setIsImporting] = useState(false);
             const theme = getTheme();
 

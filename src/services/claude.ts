@@ -50,6 +50,12 @@ import { getCLISyspromptPrefix } from '../constants/prompts'
 import { getVertexRegionForModel } from '../utils/model'
 import OpenAI from 'openai'
 import type { ChatCompletionStream } from 'openai/lib/ChatCompletionStream'
+
+// Extend ChatCompletionMessage with additional properties from different providers
+interface ExtendedChatCompletionMessage extends OpenAI.ChatCompletionMessage {
+  reasoning?: string;
+  reasoning_content?: string;
+}
 import { ContentBlock } from '@anthropic-ai/sdk/resources/messages/messages'
 import { nanoid } from 'nanoid'
 import { getCompletion } from './openai'
@@ -332,7 +338,7 @@ function messageReducer(previous: OpenAI.ChatCompletionMessage, item: OpenAI.Cha
   return reduce(previous, choice.delta) as OpenAI.ChatCompletionMessage;
 }
 async function handleMessageStream(
-  stream: ChatCompletionStream,
+  stream: ChatCompletionStream | AsyncGenerator<any, void, unknown>,
 ): Promise<OpenAI.ChatCompletion> {
   const streamStartTime = Date.now()
   let ttftMs: number | undefined
@@ -379,7 +385,7 @@ async function handleMessageStream(
 
 function convertOpenAIResponseToAnthropic(response: OpenAI.ChatCompletion) {
   let contentBlocks: ContentBlock[] = []
-  const message = response.choices?.[0]?.message
+  const message = response.choices?.[0]?.message as ExtendedChatCompletionMessage
   if(!message) {
     logEvent('weird_response', {
       response: JSON.stringify(response),
@@ -943,7 +949,7 @@ async function queryOpenAI(
 
   addToTotalCost(costUSD, durationMsIncludingRetries)
 
-  const assistantMessage = {
+  const assistantMessage: AssistantMessage = {
     message: {
       ...response,
       content: normalizeContentFromAPI(response.content),

@@ -338,6 +338,8 @@ export async function getCompletion(
 
   try {
     // Log the API request
+    const requestStartTime = Date.now();
+    
     try {
       rawLogger.logApiRequest(
         'openai',
@@ -353,8 +355,6 @@ export async function getCompletion(
     } catch (logError) {
       console.error('Failed to log API request:', logError);
     }
-    
-    const requestStartTime = Date.now();
     
     if (opts.stream) {
       const response = await fetch(`${baseURL}/chat/completions`, {
@@ -584,8 +584,8 @@ export async function getCompletion(
   } catch (error) {
     // Log the network error
     try {
-      const durationMs = Date.now() - requestStartTime;
-      rawLogger.logApiError('openai', requestId, error, durationMs);
+      // No duration calculation needed for network errors
+      rawLogger.logApiError('openai', requestId, error, 0);
     } catch (logError) {
       console.error('Failed to log API error:', logError);
     }
