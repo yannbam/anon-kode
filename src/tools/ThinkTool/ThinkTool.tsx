@@ -45,9 +45,9 @@ export const ThinkTool = {
 
   renderToolUseRejectedMessage() {
     return (
-      <MessageResponse>
+      <MessageResponse children={
         <Text color={getTheme().error}>Thought cancelled</Text>
-      </MessageResponse>
+      } />
     )
   },
 
