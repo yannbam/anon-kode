@@ -26,9 +26,7 @@
   ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx --verbose",
-    "dev:node22": "./dev-with-node22.sh --verbose",
     "build": "node build.js",
-    "start": "./run-with-node22.sh",
     "prepublishOnly": "npm run build"
   },
   "optionalDependencies": {
