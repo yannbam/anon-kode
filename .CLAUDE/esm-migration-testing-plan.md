@@ -8,12 +8,12 @@ This document outlines a comprehensive testing strategy to verify that the ESM (
 ### 1. Basic Functionality Testing
 
 - **Basic Application Start**
-  - [ ] Verify the application starts without errors
-  - [ ] Test the CLI entry point (`bin/kode.js`)
-  - [ ] Check initialization sequence completes
+  - [X] Verify the application starts without errors
+  - [X] Test the CLI entry point (`bin/kode.js`)
+  - [X] Check initialization sequence completes
 
 - **Command Processing**
-  - [ ] Test basic slash commands (/help, /model, etc.)
+  - [X] Test basic slash commands (/help, /model, etc.)
   - [ ] Verify command output renders correctly
   - [ ] Test interactive commands that use dialog boxes
 
