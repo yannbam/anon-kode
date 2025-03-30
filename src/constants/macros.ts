@@ -1,18 +1,28 @@
-// Import package.json dynamically at runtime
+// Read package.json at runtime
+import { readFile } from 'fs/promises';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+// Get the directory name in ESM context
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packagePath = resolve(__dirname, '../../package.json');
+
 let packageVersion = '0.0.0';
 
-try {
-  // For Node.js ES modules
-  import('../../package.json')
-    .then(pkg => {
-      packageVersion = pkg.default.version;
-    })
-    .catch(() => {
-      console.error('Failed to load package.json');
-    });
-} catch (e) {
-  console.error('Error setting up package info:', e);
-}
+// Load package version from package.json
+readFile(packagePath, 'utf8')
+  .then(data => {
+    try {
+      const pkg = JSON.parse(data);
+      packageVersion = pkg.version || '0.0.0';
+    } catch (parseErr) {
+      console.error('Error parsing package.json:', parseErr);
+    }
+  })
+  .catch(err => {
+    console.error('Failed to load package.json:', err);
+  });
 
 export const MACRO = {
   // Use getter to ensure we always have the latest version
