@@ -61,6 +61,7 @@ export interface LogListProps {
   logs: LogOption[];
   onSelect: (log: LogOption) => void;
   onClose: () => void;
+  context?: { unmount?: () => void; };
 }
 
 export interface SerializedMessage {
