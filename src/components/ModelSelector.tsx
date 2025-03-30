@@ -44,7 +44,10 @@ function useEscapeNavigation(onEscape: () => void, abortController?: AbortContro
       setTimeout(() => {
         handledRef.current = false;
       }, 100);
-      onEscape();
+      // Make sure we don't call onEscape if it's undefined
+      if (onEscape) {
+        onEscape();
+      }
     }
   }, { isActive: true });
 }
@@ -418,12 +421,27 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
   
   // Handle back navigation based on current screen
   const handleBack = () => {
-    if (currentScreen === 'modelType') {
-      // If we're at the first screen, call onDone to exit
-      onDone()
-    } else {
-      // Remove the current screen from the stack
-      setScreenStack(prev => prev.slice(0, -1))
+    try {
+      if (currentScreen === 'modelType') {
+        // If we're at the first screen, call onDone to exit
+        if (typeof onDone === 'function') {
+          onDone();
+        }
+      } else if (screenStack.length > 1) {
+        // Remove the current screen from the stack
+        setScreenStack(prev => prev.slice(0, -1));
+      } else {
+        // Fallback to exit if screen stack is broken
+        if (typeof onDone === 'function') {
+          onDone();
+        }
+      }
+    } catch (error) {
+      // If we encounter an error, try to exit gracefully
+      console.error('Error during back navigation:', error);
+      if (typeof onDone === 'function') {
+        onDone();
+      }
     }
   }
   
