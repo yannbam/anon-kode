@@ -64,6 +64,7 @@ import {
   getClients,
   ensureConfigScope,
 } from '../services/mcpClient.js'
+import { McpServerConfig } from '../utils/config.js'
 import { handleMcprcServerApprovals } from '../services/mcpServerApproval'
 import { checkGate, initializeStatsig, logEvent } from '../services/statsig'
 import { getExampleCommands } from '../utils/exampleCommands'
