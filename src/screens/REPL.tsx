@@ -559,9 +559,8 @@ export function REPL({
       <Static
         key={`static-messages-${forkNumber}`}
         items={messagesJSX.filter(_ => _.type === 'static')}
-      >
-        {_ => _.jsx}
-      </Static>
+        children={_ => _.jsx}
+      />
       {messagesJSX.filter(_ => _.type === 'transient').map(_ => _.jsx)}
       <Box
         borderColor="red"

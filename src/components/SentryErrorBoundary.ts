@@ -2,7 +2,7 @@ import * as React from 'react'
 import { captureException } from '../services/sentry'
 
 interface Props {
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 interface State {
@@ -28,6 +28,6 @@ export class SentryErrorBoundary extends React.Component<Props, State> {
       return null
     }
 
-    return this.props.children
+    return this.props.children || null
   }
 }
