@@ -7,6 +7,7 @@ export interface LoggedItem {
 }
 
 export interface ToolCall extends LoggedItem {
+  id?: string;
   tool: string;
   input: any;
   output?: any;
@@ -65,5 +66,13 @@ export interface LogListProps {
 export interface SerializedMessage {
   id: string;
   content: any;
-  // Add other properties as needed
+  type: string;
+  message?: any;
+  timestamp: string;
+  // Other common properties
+  model?: string;
+  tool?: string;
+  input?: any;
+  output?: any;
+  status?: string;
 }
