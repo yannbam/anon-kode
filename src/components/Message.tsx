@@ -58,6 +58,7 @@ export function Message({
         {message.message.content.map((contentItem, index) => {
           // Create element manually with a unique key prop
           return React.createElement(AssistantMessage, {
+            key: `assistant-message-${index}`,
             param: contentItem,
             costUSD: message.costUSD,
             durationMs: message.durationMs,
@@ -71,7 +72,7 @@ export function Message({
             shouldAnimate: shouldAnimate,
             shouldShowDot: shouldShowDot,
             width: width
-          }, `assistant-message-${index}`);
+          });
         })}
       </Box>
     )
@@ -88,13 +89,14 @@ export function Message({
       {content.map((contentItem, index) => {
         // Create element manually with a unique key prop
         return React.createElement(UserMessage, {
+          key: `user-message-${index}`,
           message: message,
           messages: messages,
           addMargin: addMargin,
           tools: tools,
           param: contentItem as TextBlockParam,
           options: { verbose }
-        }, `user-message-${index}`);
+        });
       })}
     </Box>
   )

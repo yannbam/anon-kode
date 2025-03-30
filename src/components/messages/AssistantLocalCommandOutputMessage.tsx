@@ -21,16 +21,33 @@ export function AssistantLocalCommandOutputMessage({
 
   if (insides.length === 0) {
     // Use React.createElement to avoid key prop issues
-    insides = [React.createElement(Text, { children: "(No output)" }, "no-output")];
+    insides = [React.createElement(Text, { key: "no-output", children: "(No output)" })];
   }
 
   return [
-    React.createElement(Box, { gap: 1, children: [
-      React.createElement(Box, { children: [
-        React.createElement(Text, { color: theme.secondaryText, children: '  ⎿ ' }, "prefix-text")
-      ] }, "prefix-box"),
-      ...insides.map((element, index) => React.createElement(Box, { flexDirection: "column", children: element }, `command-output-${index}`))
-    ]}, "command-output-box")
+    React.createElement(Box, { 
+      key: "command-output-box",
+      gap: 1, 
+      children: [
+        React.createElement(Box, { 
+          key: "prefix-box",
+          children: [
+            React.createElement(Text, { 
+              key: "prefix-text",
+              color: theme.secondaryText, 
+              children: '  ⎿ ' 
+            })
+          ] 
+        }),
+        ...insides.map((element, index) => 
+          React.createElement(Box, { 
+            key: `command-output-${index}`,
+            flexDirection: "column", 
+            children: element 
+          })
+        )
+      ]
+    })
   ]
 }
 
