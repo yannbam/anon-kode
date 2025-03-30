@@ -78,6 +78,7 @@
   },
   "devDependencies": {
     "react-devtools-core": "^6.1.1",
+    "sharp": "^0.33.5",
     "tsx": "^3.12.10",
     "typescript": "^5.4.5"
   }
