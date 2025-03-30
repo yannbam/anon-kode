@@ -55,24 +55,24 @@ export function Message({
   if (message.type === 'assistant') {
     return (
       <Box flexDirection="column" width="100%">
-        {message.message.content.map((_, index) => (
-          <AssistantMessage
-            key={index}
-            param={_}
-            costUSD={message.costUSD}
-            durationMs={message.durationMs}
-            addMargin={addMargin}
-            tools={tools}
-            debug={debug}
-            options={{ verbose }}
-            erroredToolUseIDs={erroredToolUseIDs}
-            inProgressToolUseIDs={inProgressToolUseIDs}
-            unresolvedToolUseIDs={unresolvedToolUseIDs}
-            shouldAnimate={shouldAnimate}
-            shouldShowDot={shouldShowDot}
-            width={width}
-          />
-        ))}
+        {message.message.content.map((contentItem, index) => {
+          // Create element manually to avoid key prop in props
+          return React.createElement(AssistantMessage, {
+            param: contentItem,
+            costUSD: message.costUSD,
+            durationMs: message.durationMs,
+            addMargin: addMargin,
+            tools: tools,
+            debug: debug,
+            options: { verbose },
+            erroredToolUseIDs: erroredToolUseIDs,
+            inProgressToolUseIDs: inProgressToolUseIDs,
+            unresolvedToolUseIDs: unresolvedToolUseIDs,
+            shouldAnimate: shouldAnimate,
+            shouldShowDot: shouldShowDot,
+            width: width
+          }, null);
+        })}
       </Box>
     )
   }
@@ -85,17 +85,17 @@ export function Message({
       : message.message.content
   return (
     <Box flexDirection="column" width="100%">
-      {content.map((_, index) => (
-        <UserMessage
-          key={index}
-          message={message}
-          messages={messages}
-          addMargin={addMargin}
-          tools={tools}
-          param={_ as TextBlockParam}
-          options={{ verbose }}
-        />
-      ))}
+      {content.map((contentItem, index) => {
+        // Create element manually to avoid key prop in props
+        return React.createElement(UserMessage, {
+          message: message,
+          messages: messages,
+          addMargin: addMargin,
+          tools: tools,
+          param: contentItem as TextBlockParam,
+          options: { verbose }
+        }, null);
+      })}
     </Box>
   )
 }
