@@ -23,7 +23,8 @@ export function StructuredDiff({
     [patch.lines, patch.oldStart, width, dim, overrideTheme],
   )
 
-  return diff.map((_, i) => <Box key={i}>{_}</Box>)
+  // Use createElement to avoid 'key' prop issues
+  return diff.map((node, i) => React.createElement(Box, { children: node }, i))
 }
 
 function formatDiff(
@@ -63,58 +64,42 @@ function formatDiff(
     const wrappedLines = wrapText(code, width - maxWidth)
     return wrappedLines.map((line, lineIndex) => {
       const key = `${type}-${i}-${lineIndex}`
+      const lineNumber = React.createElement(LineNumber, {
+        i: lineIndex === 0 ? i : undefined,
+        width: maxWidth
+      });
+      
       switch (type) {
-        case 'add':
-          return (
-            <Text key={key}>
-              <LineNumber
-                i={lineIndex === 0 ? i : undefined}
-                width={maxWidth}
-              />
-              <Text
-                color={overrideTheme ? theme.text : undefined}
-                backgroundColor={
-                  dim ? theme.diff.addedDimmed : theme.diff.added
-                }
-                dimColor={dim}
-              >
-                {line}
-              </Text>
-            </Text>
-          )
-        case 'remove':
-          return (
-            <Text key={key}>
-              <LineNumber
-                i={lineIndex === 0 ? i : undefined}
-                width={maxWidth}
-              />
-              <Text
-                color={overrideTheme ? theme.text : undefined}
-                backgroundColor={
-                  dim ? theme.diff.removedDimmed : theme.diff.removed
-                }
-                dimColor={dim}
-              >
-                {line}
-              </Text>
-            </Text>
-          )
-        case 'nochange':
-          return (
-            <Text key={key}>
-              <LineNumber
-                i={lineIndex === 0 ? i : undefined}
-                width={maxWidth}
-              />
-              <Text
-                color={overrideTheme ? theme.text : undefined}
-                dimColor={dim}
-              >
-                {line}
-              </Text>
-            </Text>
-          )
+        case 'add': {
+          const textElement = React.createElement(Text, {
+            color: overrideTheme ? theme.text : undefined,
+            backgroundColor: dim ? theme.diff.addedDimmed : theme.diff.added,
+            dimColor: dim,
+            children: line
+          });
+          
+          // The key prop should be on the outer element, not passed as a prop
+          return React.createElement(Text, { children: [lineNumber, textElement] }, `${type}-${i}-${lineIndex}`);
+        }
+        case 'remove': {
+          const textElement = React.createElement(Text, {
+            color: overrideTheme ? theme.text : undefined,
+            backgroundColor: dim ? theme.diff.removedDimmed : theme.diff.removed,
+            dimColor: dim,
+            children: line
+          });
+          
+          return React.createElement(Text, { children: [lineNumber, textElement] }, `${type}-${i}-${lineIndex}`);
+        }
+        case 'nochange': {
+          const textElement = React.createElement(Text, {
+            color: overrideTheme ? theme.text : undefined,
+            dimColor: dim,
+            children: line
+          });
+          
+          return React.createElement(Text, { children: [lineNumber, textElement] }, `${type}-${i}-${lineIndex}`);
+        }
       }
     })
   })
