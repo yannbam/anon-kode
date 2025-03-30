@@ -3,7 +3,11 @@ import { getTheme } from '../utils/theme'
 import { Text } from 'ink'
 import { PRODUCT_NAME } from '../constants/product'
 
-export function FallbackToolUseRejectedMessage(): React.ReactNode {
+type Props = {
+  // No required props
+}
+
+export function FallbackToolUseRejectedMessage({}: Props = {}): React.ReactNode {
   return (
     <Text>
       &nbsp;&nbsp;⎿ &nbsp;

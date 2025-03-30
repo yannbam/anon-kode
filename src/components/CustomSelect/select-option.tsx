@@ -1,6 +1,6 @@
 import figures from 'figures'
 import { Box, Text } from 'ink'
-import React, { type ReactNode } from 'react'
+import * as React from 'react'
 import { type Theme } from './theme'
 import { useComponentTheme } from '@inkjs/ui'
 
@@ -23,7 +23,7 @@ export type SelectOptionProps = {
   /**
    * Option label.
    */
-  readonly children: ReactNode
+  readonly children: React.ReactNode
 }
 
 export function SelectOption({
@@ -31,7 +31,7 @@ export function SelectOption({
   isSelected,
   smallPointer,
   children,
-}: SelectOptionProps) {
+}: SelectOptionProps): React.ReactNode {
   const { styles } = useComponentTheme<Theme>('Select')
 
   return (

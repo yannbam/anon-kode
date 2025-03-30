@@ -2,7 +2,8 @@ import { Option, SelectProps } from '@inkjs/ui'
 import chalk from 'chalk'
 import { Box, Text, useInput } from 'ink'
 import Link from 'ink-link'
-import React, { useState } from 'react'
+import * as React from 'react'
+import { useState } from 'react'
 import { getTheme } from '../../utils/theme'
 import { Select } from '../CustomSelect/select'
 import type { Tool } from '../../Tool'
@@ -68,7 +69,7 @@ export function BinaryFeedbackView({
   tools,
   unresolvedToolUseIDs,
   verbose,
-}: Props) {
+}: Props): React.ReactNode {
   const theme = getTheme()
   const [focused, setFocus] = useState('no-preference')
   const [focusValue, setFocusValue] = useState<string | undefined>(undefined)

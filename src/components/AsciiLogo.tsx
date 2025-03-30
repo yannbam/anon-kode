@@ -1,5 +1,5 @@
 import { Box, Text } from 'ink'
-import React from 'react'
+import * as React from 'react'
 import { getTheme } from '../utils/theme'
 import { ASCII_LOGO } from '../constants/product'
 
