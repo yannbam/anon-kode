@@ -56,7 +56,7 @@ export function Message({
     return (
       <Box flexDirection="column" width="100%">
         {message.message.content.map((contentItem, index) => {
-          // Create element manually to avoid key prop in props
+          // Create element manually with a unique key prop
           return React.createElement(AssistantMessage, {
             param: contentItem,
             costUSD: message.costUSD,
@@ -71,7 +71,7 @@ export function Message({
             shouldAnimate: shouldAnimate,
             shouldShowDot: shouldShowDot,
             width: width
-          }, null);
+          }, `assistant-message-${index}`);
         })}
       </Box>
     )
@@ -86,7 +86,7 @@ export function Message({
   return (
     <Box flexDirection="column" width="100%">
       {content.map((contentItem, index) => {
-        // Create element manually to avoid key prop in props
+        // Create element manually with a unique key prop
         return React.createElement(UserMessage, {
           message: message,
           messages: messages,
@@ -94,7 +94,7 @@ export function Message({
           tools: tools,
           param: contentItem as TextBlockParam,
           options: { verbose }
-        }, null);
+        }, `user-message-${index}`);
       })}
     </Box>
   )
