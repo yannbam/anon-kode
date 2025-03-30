@@ -271,6 +271,11 @@ async function setup(
   }
 }
 
+// Create a custom render options interface
+interface ExtendedRenderOptions extends RenderOptions {
+  onFlicker?: () => void;
+}
+
 async function main() {
   // Validate configs are valid and enable configuration system
   try {
@@ -284,7 +289,7 @@ async function main() {
   }
 
   let inputPrompt = ''
-  let renderContext: RenderOptions | undefined = {
+  let renderContext: ExtendedRenderOptions | undefined = {
     exitOnCtrlC: false,
     onFlicker() {
       logEvent('tengu_flicker', {})
@@ -316,7 +321,7 @@ async function parseArgs(
 ): Promise<Command> {
   const program = new Command()
 
-  const renderContextWithExitOnCtrlC = {
+  const renderContextWithExitOnCtrlC: ExtendedRenderOptions = {
     ...renderContext,
     exitOnCtrlC: true,
   }
