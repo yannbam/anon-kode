@@ -26,7 +26,9 @@
   ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx --verbose",
+    "dev:node22": "./dev-with-node22.sh --verbose",
     "build": "node build.js",
+    "start": "./run-with-node22.sh",
     "prepublishOnly": "npm run build"
   },
   "optionalDependencies": {
@@ -79,7 +81,7 @@
   "devDependencies": {
     "react-devtools-core": "^6.1.1",
     "sharp": "^0.33.5",
-    "tsx": "^3.12.10",
+    "tsx": "^4.19.3",
     "typescript": "^5.4.5"
   }
 }
