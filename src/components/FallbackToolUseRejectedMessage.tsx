@@ -1,11 +1,11 @@
 import * as React from 'react';
-import { getTheme } from '../utils/theme';
 import { Text } from 'ink';
+import { getTheme } from '../utils/theme';
 import { PRODUCT_NAME } from '../constants/product';
 
-type FallbackToolUseRejectedMessageProps = {
+interface FallbackToolUseRejectedMessageProps {
   // No required props
-};
+}
 
 export const FallbackToolUseRejectedMessage: React.FC<FallbackToolUseRejectedMessageProps> = () => {
   return (

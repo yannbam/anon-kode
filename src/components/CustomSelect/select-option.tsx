@@ -1,14 +1,10 @@
-import figures from 'figures';
-import { Box, Text } from 'ink';
 import * as React from 'react';
+import { Box, Text } from 'ink';
+import figures from 'figures';
 import { useComponentTheme } from '@inkjs/ui';
+import type { ComponentTheme } from '@inkjs/ui/build/theme';
 
-// Define Theme type since we couldn't find the original file
-interface Theme {
-  Select?: any; // Using any as fallback since we don't have the exact type
-}
-
-export type SelectOptionProps = {
+interface SelectOptionProps {
   /**
    * Determines if option is focused.
    */
@@ -28,7 +24,7 @@ export type SelectOptionProps = {
    * Option label.
    */
   readonly children: React.ReactNode;
-};
+}
 
 export const SelectOption: React.FC<SelectOptionProps> = ({
   isFocused,
@@ -36,7 +32,7 @@ export const SelectOption: React.FC<SelectOptionProps> = ({
   smallPointer,
   children,
 }) => {
-  const { styles } = useComponentTheme<Theme>('Select');
+  const { styles } = useComponentTheme<ComponentTheme>('Select');
 
   return (
     <Box {...styles.option({ isFocused })}>

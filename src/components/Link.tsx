@@ -1,18 +1,18 @@
-import InkLink from 'ink-link';
-import { Text } from 'ink';
 import * as React from 'react';
+import { Text } from 'ink';
+import InkLink from 'ink-link';
 import { env } from '../utils/env';
 
-type LinkProps = {
+interface LinkProps {
   url: string;
   children?: React.ReactNode;
   fallback?: boolean;
-};
+}
 
 // Terminals that support hyperlinks
 const LINK_SUPPORTING_TERMINALS = ['iTerm.app', 'WezTerm', 'Hyper', 'VSCode'];
 
-const Link: React.FC<LinkProps> = ({ url, children, fallback = true }) => {
+export const Link: React.FC<LinkProps> = ({ url, children, fallback = true }) => {
   const supportsLinks = LINK_SUPPORTING_TERMINALS.includes(env.terminal ?? '');
 
   // Determine what text to display - use children or fall back to the URL itself

@@ -45,7 +45,7 @@ export function getOptions(): BinaryFeedbackOption[] {
   ]
 }
 
-type Props = {
+interface BinaryFeedbackViewProps {
   m1: AssistantMessage
   m2: AssistantMessage
   onChoose?: BinaryFeedbackChoose
@@ -58,7 +58,7 @@ type Props = {
   verbose: boolean
 }
 
-export function BinaryFeedbackView({
+export const BinaryFeedbackView: React.FC<BinaryFeedbackViewProps> = ({
   m1,
   m2,
   onChoose,
@@ -69,7 +69,7 @@ export function BinaryFeedbackView({
   tools,
   unresolvedToolUseIDs,
   verbose,
-}: Props): React.ReactNode {
+}) => {
   const theme = getTheme()
   const [focused, setFocus] = useState('no-preference')
   const [focusValue, setFocusValue] = useState<string | undefined>(undefined)
