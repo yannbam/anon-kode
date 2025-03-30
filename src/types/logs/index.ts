@@ -38,9 +38,28 @@ export interface ContextChange extends LoggedItem {
 
 // Add missing types
 export interface LogOption {
+  // Basic logging configuration
   enabled: boolean;
   mode: 'formatted' | 'raw' | 'both';
   path: string;
+  
+  // Optional properties used in various components
+  value?: number;
+  date?: string;
+  fullPath?: string;
+  messages?: SerializedMessage[];
+  created?: Date;
+  modified?: Date;
+  firstPrompt?: string;
+  messageCount?: number;
+  forkNumber?: number;
+  sidechainNumber?: number;
+}
+
+export interface LogListProps {
+  logs: LogOption[];
+  onSelect: (log: LogOption) => void;
+  onClose: () => void;
 }
 
 export interface SerializedMessage {
