@@ -558,7 +558,7 @@ export function REPL({
     <>
       {/* Use wrapping div to handle the key */}
       <div>
-        <Static items={messagesJSX.filter(_ => _.type === 'static')} children={(item) => item.jsx} />
+        <Static items={messagesJSX.filter(_ => _.type === 'static')} children={(item: {jsx: React.ReactNode}) => item.jsx} />
       </div>
       {messagesJSX.filter(_ => _.type === 'transient').map(_ => _.jsx)}
       <Box
