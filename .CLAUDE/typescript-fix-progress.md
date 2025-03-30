@@ -9,11 +9,21 @@ This document summarizes our progress in migrating the codebase to use ES Module
 - **Branch**: `fix/typescript-errors`
 - **Module System**: ESM with `moduleResolution: "bundler"` and `module: "ES2022"`
 - **Target**: ES2023
-- **Fixed Files**:
+
+> **⚠️ IMPORTANT MODULE CONFIGURATION DECISION ⚠️**  
+> After careful consideration, we have finalized the TypeScript configuration with:  
+> - `moduleResolution: "bundler"` - Required for proper ESM handling  
+> - `module: "ES2022"` - Latest supported module option  
+> - `target: "ES2023"` - Latest language features  
+> 
+> This configuration MUST NOT be changed as it's the correct approach for this codebase.
+
+### Fixed Files
   - Tool.ts interface
   - Several React components (Link, AsciiLogo, FallbackToolUseRejectedMessage, etc.)
   - JSON imports in macros.ts
   - LogOption interface expansion
+  - Created missing notebook type definitions
 
 ## Approach Used
 
