@@ -445,8 +445,18 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
     }
   }
   
-  // Use escape navigation hook
-  useEscapeNavigation(handleBack, abortController);
+  // Force screen refresh function to help with terminal rendering issues
+  const forceScreenRefresh = useCallback(() => {
+    // Send a carriage return to refresh the terminal display
+    process.stdout.write('\r');
+  }, []);
+  
+  // Use escape navigation hook with screen refresh
+  useEscapeNavigation(() => {
+    handleBack();
+    // Add a small delay and force screen refresh
+    setTimeout(forceScreenRefresh, 50);
+  }, abortController);
   
   // Handle cursor offset changes
   function handleCursorOffsetChange(offset: number) {

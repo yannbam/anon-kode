@@ -230,7 +230,16 @@ export function Onboarding({ onDone }: Props): React.ReactNode {
 
   // If we're showing the model selector screen, render it directly
   if (showModelSelector) {
-    return <ModelSelector onDone={handleModelSelectionDone} />
+    return <ModelSelector onDone={() => {
+      // Reset the UI state when returning from ModelSelector
+      setShowModelSelector(false);
+      // Force re-render by cycling the current step
+      const current = currentStepIndex;
+      setCurrentStepIndex(-1);
+      setTimeout(() => setCurrentStepIndex(current), 10);
+      // Execute the original onDone function
+      onDone();
+    }} />;
   }
   
   return (
