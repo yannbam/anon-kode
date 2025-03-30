@@ -82,3 +82,45 @@ export interface NotebookModel {
   cells: NotebookCell[];
   metadata: NotebookMetadata;
 }
+
+// Adding types used in NotebookEditTool and NotebookReadTool
+export type NotebookCellType = 'code' | 'markdown' | 'raw';
+
+export interface NotebookContent {
+  cells: NotebookCell[];
+  metadata: NotebookMetadata;
+  nbformat: number;
+  nbformat_minor: number;
+}
+
+export interface NotebookOutputImage {
+  image_data: string;
+  media_type: string;
+}
+
+export interface NotebookCellSourceOutput {
+  output_type: string;
+  text?: string;
+  image?: NotebookOutputImage;
+}
+
+export interface NotebookCellOutput {
+  output_type: 'stream' | 'display_data' | 'execute_result' | 'error';
+  text?: string | string[];
+  data?: {
+    [key: string]: any;
+  };
+  name?: string;
+  ename?: string;
+  evalue?: string;
+  traceback?: string[];
+}
+
+export interface NotebookCellSource {
+  cell: number;
+  cellType: NotebookCellType;
+  source: string;
+  language: string;
+  execution_count?: number | null;
+  outputs?: NotebookCellSourceOutput[];
+}
