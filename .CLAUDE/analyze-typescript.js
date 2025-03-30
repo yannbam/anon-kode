@@ -25,22 +25,22 @@ const filesToCheck = [
   'src/services/statsig.ts'
 ];
 
-// Convert to absolute paths for checking existence
-const absoluteFilePaths = filesToCheck.map(file => path.resolve(projectRoot, file));
+// Create temporary tsconfig that includes only our target files
+const tempTsConfig = {
+  "extends": "./tsconfig.json",
+  "include": filesToCheck,
+  "exclude": ["node_modules", "dist"]
+};
 
-// Verify files exist
-for (const filePath of absoluteFilePaths) {
-  if (!fs.existsSync(filePath)) {
-    console.error(`File not found: ${filePath}`);
-    process.exit(1);
-  }
-}
+// Write temp config
+const tempConfigPath = path.join(projectRoot, '.CLAUDE', 'tsconfig.temp.json');
+fs.writeFileSync(tempConfigPath, JSON.stringify(tempTsConfig, null, 2));
 
 console.log("Analyzing specific TypeScript files with project settings...");
 console.log("Files to check:", filesToCheck.join(", "));
 
-// Run tsc directly against the files using the project's tsconfig
-const tsc = spawn('npx', ['tsc', '--noEmit', '--project', 'tsconfig.json', ...filesToCheck], {
+// Run tsc with the temp config file
+const tsc = spawn('npx', ['tsc', '--noEmit', '--project', tempConfigPath], {
   stdio: 'pipe',
   shell: true
 });
@@ -81,5 +81,12 @@ tsc.on('exit', (code) => {
         console.log(`${file}: ${count} errors`);
       }
     }
+  }
+  
+  // Clean up the temporary file
+  try {
+    fs.unlinkSync(tempConfigPath);
+  } catch (e) {
+    console.error("Failed to clean up temporary config file:", e);
   }
 });
