@@ -10,6 +10,11 @@ interface State {
 }
 
 export class SentryErrorBoundary extends React.Component<Props, State> {
+  // Explicitly declare props to help TypeScript understand the type
+  readonly props: Readonly<Props>;
+  // Explicitly declare state to help TypeScript understand the type
+  state: State = { hasError: false };
+  
   constructor(props: Props) {
     super(props)
     this.state = { hasError: false }
