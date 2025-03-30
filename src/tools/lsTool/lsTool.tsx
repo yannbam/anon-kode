@@ -77,9 +77,10 @@ export const LSTool = {
               .split('\n')
               .filter(_ => _.trim() !== '')
               .slice(0, verbose ? undefined : MAX_LINES)
-              .map((_, i) => (
-                <Text key={i}>{_}</Text>
-              ))}
+              .map((line, i) => {
+                // Use React.createElement to avoid key prop issues
+                return React.createElement(Text, { children: line }, i);
+              })}
             {!verbose && result.split('\n').length > MAX_LINES && (
               <Text color={getTheme().secondaryText}>
                 ... (+{result.split('\n').length - MAX_LINES} items)
