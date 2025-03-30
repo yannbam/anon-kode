@@ -21,4 +21,5 @@ export const MACRO = {
   },
   README_URL: 'https://docs.anthropic.com/s/claude-code',
   PACKAGE_URL: 'https://www.npmjs.com/package/anon-kode',
+  ISSUES_EXPLAINER: 'open an issue on GitHub at anon-kode/issues',
 }
