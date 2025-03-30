@@ -2,13 +2,14 @@
 
 ## Overview
 
-This document summarizes our progress in migrating the codebase to use ES Modules (ESM) with TypeScript and fixing related type errors. We've made significant progress, but there are still several categories of errors to address.
+This document summarizes our progress in migrating the codebase to use ES Modules (ESM) with TypeScript and fixing related type errors. We've made significant progress, reducing the error count from 72 to 52.
 
 ## Current State
 
 - **Branch**: `fix/typescript-errors`
 - **Module System**: ESM with `moduleResolution: "bundler"` and `module: "ES2022"`
 - **Target**: ES2023
+- **Current Error Count**: 52 (down from 72)
 
 > **⚠️ IMPORTANT MODULE CONFIGURATION DECISION ⚠️**  
 > After careful consideration, we have finalized the TypeScript configuration with:  
@@ -18,147 +19,158 @@ This document summarizes our progress in migrating the codebase to use ES Module
 > 
 > This configuration MUST NOT be changed as it's the correct approach for this codebase.
 
-### Fixed Files
-  - Tool.ts interface
-  - Several React components (Link, AsciiLogo, FallbackToolUseRejectedMessage, etc.)
-  - JSON imports in macros.ts
-  - LogOption interface expansion
-  - Created missing notebook type definitions
+### Recent Fixes
+1. **React Component Key Prop Issues** 
+   - Fixed in ProjectOnboarding.tsx, Message.tsx, StructuredDiff.tsx and several tool components
+   - Used React.createElement pattern with key as third argument
+
+2. **Missing 'children' Props** 
+   - Made children optional in SentryErrorBoundary
+   - Added explicit children props in Static components
+   - Fixed ThinkTool component
+   - Fixed REPL component
+
+3. **Class Component Typing**
+   - Fixed SentryErrorBoundary class component with proper TypeScript patterns
+   - Added explicit props and state declarations
+
+4. **Added Missing Properties**
+   - Added ISSUES_EXPLAINER to MACRO constant
+
+5. **Extended Interface Definitions**
+   - Created ExtendedKey interface in useTextInput.ts to handle fn, home, and end properties
+   - Properly typed setTimeout and NodeJS.Timeout
+
+6. **Fixed Namespace Issues**
+   - Added proper React imports and namespace references
+
+7. **Type Definitions**
+   - Enhanced notebook type definitions with missing interfaces
 
 ## Approach Used
 
-1. Created a systematic plan to address errors by category
-2. Fixed React component interfaces first using the React.FC pattern 
-3. Used interface instead of type for component props
-4. Fixed core type definitions in the logs module
-5. Updated macros.ts to use compatible dynamic JSON imports
+1. Research-first methodology using web search for best practices
+2. Categorized errors by type and pattern for systematic fixes
+3. Used React.createElement for key prop issues
+4. Extended interfaces for missing properties
+5. Made children props optional where appropriate
+6. Created comprehensive type definitions for notebook and other modules
+7. Fixed one error category at a time with immediate testing
+8. Made atomic commits with descriptive messages
 
 ## Remaining Type Errors
 
 From our analysis of the build output, the remaining errors fall into these categories:
 
-### 1. 'key' Props in React Components (~30%)
+### 1. Service Type Mismatches (~25%)
 ```typescript
-Property 'key' does not exist on type 'Props'
-```
-These need to be fixed by removing 'key' from component props being passed directly.
-
-### 2. Missing 'children' in Component Props (~15%)
-```typescript
-Property 'children' is missing in type '{}' but required in type 'Props'
-```
-Components need either:
-- Children prop made optional with '?'
-- Children explicitly provided when calling components
-
-### 3. Cannot Find Module/Namespace Issues (~15%)
-```typescript
-Cannot find namespace 'React'
-Cannot find module '../types/notebook' 
-```
-Need to:
-- Add consistent React imports
-- Create missing type files
-
-### 4. Type Mismatch in Service Methods (~10%)
-```typescript
+Type 'AnthropicBedrock' is missing properties from type 'Anthropic'
 Expected 6 arguments, but got 7
-Type 'AnthropicBedrock' is missing properties
 ```
-Service method signatures need updating.
+Service method signatures need updating in claude.ts and openai.ts.
 
-### 5. Missing Properties on Objects (~10%)
+### 2. Missing Properties on Objects (~20%)
 ```typescript
-Property 'PACKAGE_URL' does not exist on type '{ readonly VERSION: string; README_URL: string; }'
-Property 'reasoning' does not exist on type 'ChatCompletionMessage'
+Property 'commandPrefix' does not exist on type 'CommandSubcommandPrefixResult'
+Property 'timestamp' does not exist on type 'SerializedMessage'
 ```
-Need to add missing properties to objects.
+Need to add missing properties to various objects and interfaces.
 
-### 6. Unused @ts-expect-error Directives (~5%)
-Need to address or remove these unused directives.
+### 3. Remaining React Component Issues (~15%)
+```typescript
+Property 'context' does not exist on type 'Props'
+Type '{ context: ... }' is not assignable to type 'Props'
+```
+Some React components still need props interfaces updated.
 
-### 7. Other Miscellaneous Issues (~15%)
+### 4. Missing Type Files (~10%)
+```typescript
+Cannot find module or its corresponding type declarations
+```
+Some imports are still referencing non-existent files or modules.
 
-## Next Steps for Continuing
+### 5. Object Literal Issues (~10%)
+```typescript
+Object literal may only specify known properties
+```
+Some objects include properties not defined in their interfaces.
 
-1. **Create Missing Type Files First**
-   - Create any missing type files referenced in imports
-   - Focus on '../types/notebook' and other critical dependencies
+### 6. Miscellaneous Issues (~20%)
 
-2. **Fix React Components Systematically**
-   - Fix 'key' prop issues - Remove key from component Props type definitions
-   - Fix required children props - Make optional or provide explicitly
-   - Use React.FC<PropsType> pattern consistently
+## Next Steps and Priorities
 
-3. **Address Service Type Issues**
-   - Align parameter counts in function signatures
-   - Fix type mismatches in API clients
+1. **Fix Service Type Mismatches**
+   - Address incompatible types in claude.ts and openai.ts
+   - Fix parameter count mismatches in API methods
+   - Ensure proper typing for streaming responses
 
-4. **Clean Up Directive Issues**
-   - Address unused @ts-expect-error directives
+2. **Add Missing Object Properties**
+   - Add missing properties to SerializedMessage
+   - Fix CommandSubcommandPrefixResult interface
+   - Address ToolCall interface issues
 
-5. **Final Pass with build-temp-test.js**
-   - Verify fixes with full test build
+3. **Complete Component Props Fixes**
+   - Fix remaining context property issues
+   - Ensure consistency in props interfaces
+
+4. **Create/Update Missing Type Files**
+   - Complete any remaining missing module references
+   - Ensure consistent import paths
+
+5. **Final Pass**
+   - Address any remaining miscellaneous errors
+   - Verify all fixes with a complete build
 
 ## Implementation Patterns
 
-### Pattern for React Components
+### Pattern for React Components with Key Props
 ```typescript
-import * as React from 'react';
+// Instead of this (causes TS error):
+<Component key={index} otherProp={value} />
 
-interface ComponentProps {
-  requiredProp: string;
-  optionalProp?: number;
-  children?: React.ReactNode; // Make children optional
-}
-
-export const Component: React.FC<ComponentProps> = ({
-  requiredProp,
-  optionalProp,
-  children,
-}) => {
-  // Implementation
-  return (
-    <div>{children}</div>
-  );
-};
+// Use this pattern:
+React.createElement(Component, { otherProp: value }, index)
 ```
 
-### Pattern for Removing 'key' Props
-When mapping components in arrays, use this pattern:
+### Pattern for Class Components
 ```typescript
-{items.map((item, index) => (
-  // key goes here on the element, not passed to Props
-  <Component 
-    key={index}
-    // other props
-  />
-))}
-```
+interface Props { /* props */ }
+interface State { /* state */ }
 
-### Pattern for Missing Type Files
-Create skeleton type files with essential interfaces:
-```typescript
-// src/types/notebook/index.ts
-export interface Notebook {
-  cells: NotebookCell[];
-  metadata: any;
-}
-
-export interface NotebookCell {
-  cell_type: 'code' | 'markdown';
-  source: string[];
-  // Add other properties as needed
+export class ClassComponent extends React.Component<Props, State> {
+  // Explicitly declare props and state to help TypeScript
+  readonly props: Readonly<Props>;
+  state: State = { /* initial state */ };
+  
+  // Rest of the component
 }
 ```
 
-### Strategy for Service Type Issues
-When fixing function parameter mismatches:
-1. First identify the correct parameter count in the implementation
-2. Match the type signature to the implementation
-3. Consider using optional parameters for backward compatibility
+### Pattern for Service Type Fixes
+```typescript
+// For parameter count mismatches:
+function serviceMethod(
+  param1: Type1,
+  param2: Type2,
+  param3?: Type3, // Make extra params optional
+  param4?: Type4
+): ReturnType { /* ... */ }
+
+// For incompatible types:
+interface ExtendedType extends BaseType {
+  additionalProp1?: PropType1;
+  additionalProp2?: PropType2;
+}
+```
 
 ## Tools and Commands
 
 - **Build Test**: `node build-temp-test.js`
+- **Error Count**: `node build-temp-test.js | grep -E "error TS[0-9]+" | wc -l`
+- **Filter Errors**: `node build-temp-test.js | grep -E "error TS[0-9]+" | grep "Property"`
 - **Direct Type Check**: `npx tsc --noEmit src/path/to/file.tsx`
+
+## Documentation
+
+A comprehensive TypeScript error fixing workflow guide has been created at:
+`.CLAUDE/typescript-error-fixing-workflow.md`
