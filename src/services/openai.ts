@@ -265,6 +265,20 @@ async function handleApiError(
     headers: JSON.stringify(headers)
   })
   
+  // Store detailed error information in session state
+  const apiKey = getActiveApiKey(config, type, false);
+  const partialKey = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'none';
+  
+  setSessionState('lastApiError', {
+    timestamp: Date.now(),
+    status: response?.status || null,
+    message: errMsg,
+    headers,
+    provider: 'openai',
+    apiKey: partialKey,
+    details: error
+  });
+  
   throw new Error(`API request failed (${response?.status || 'unknown'}): ${errMsg}\nHeaders: ${JSON.stringify(headers, null, 2)}`);
 }
 
@@ -309,7 +323,35 @@ export async function getCompletion(
     } catch (logError) {
       console.error('Failed to log API error:', logError);
     }
-    throw new Error(`API request failed: Max attempts reached (${attempt}/${maxAttempts}) or all API keys failed (${failedKeysCount}/${availableKeysCount} keys failed)`);
+    
+    // Construct improved error message with detailed information from last API error
+    const lastError = getSessionState('lastApiError');
+    let errorMessage = `API request failed: Max attempts reached (${attempt}/${maxAttempts}) or all API keys failed (${failedKeysCount}/${availableKeysCount} keys failed)`;
+    
+    if (lastError) {
+      // Add the actual error message from the provider
+      errorMessage += `\nProvider error: ${lastError.message}`;
+      
+      // Add status code and important headers
+      errorMessage += `\nStatus: ${lastError.status || 'unknown'}`;
+      
+      // Include relevant headers (rate limits, request IDs, etc.)
+      const relevantHeaders = {};
+      for (const [key, value] of Object.entries(lastError.headers || {})) {
+        if (key.toLowerCase().includes('rate') || 
+            key.toLowerCase().includes('limit') || 
+            key.toLowerCase().includes('request-id') || 
+            key.toLowerCase().includes('error')) {
+          relevantHeaders[key] = value;
+        }
+      }
+      
+      if (Object.keys(relevantHeaders).length > 0) {
+        errorMessage += `\nRelevant headers: ${JSON.stringify(relevantHeaders, null, 2)}`;
+      }
+    }
+    
+    throw new Error(errorMessage);
   }
 
   const apiKey = getActiveApiKey(config, type)
@@ -639,7 +681,18 @@ export async function getCompletion(
       await new Promise(resolve => setTimeout(resolve, delay))
       return getCompletion(type, opts, attempt + 1, maxAttempts, requestId)
     }
-    throw new Error(`Network error: ${error.message || 'Unknown error'}`)
+    // Store detailed network error information in session state
+    setSessionState('lastApiError', {
+      timestamp: Date.now(),
+      status: null,
+      message: error.message || 'Unknown network error',
+      headers: {},
+      provider: 'openai',
+      apiKey: 'network_error',
+      details: error
+    });
+    
+    throw new Error(`Network error: ${error.message || 'Unknown error'}`);
   } 
 }
 

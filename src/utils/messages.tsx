@@ -88,14 +88,65 @@ export function createAssistantMessage(content: string): AssistantMessage {
   ])
 }
 
+/**
+ * Format API error message from session state data
+ */
+export function formatApiErrorMessage(errorContent: string): string {
+  // Import here to avoid circular dependency issues
+  const { getSessionState } = require('./sessionState');
+  const lastError = getSessionState ? getSessionState('lastApiError') : null;
+  
+  if (!lastError) {
+    return errorContent;
+  }
+  
+  // Build a more descriptive error message that includes the API provider's error details
+  let formattedError = errorContent;
+  
+  // Add the provider details if available
+  if (lastError.provider && lastError.timestamp) {
+    const timestamp = new Date(lastError.timestamp).toISOString();
+    formattedError += `\n\nProvider: ${lastError.provider} at ${timestamp}`;
+  }
+  
+  // Add the specific error message from the provider
+  if (lastError.message && typeof lastError.message === 'string') {
+    formattedError += `\nDetails: ${lastError.message}`;
+  }
+  
+  // Add status code and request ID if available
+  if (lastError.status) {
+    formattedError += `\nStatus code: ${lastError.status}`;
+  }
+  
+  // Add relevant headers (focusing on rate limits and request IDs)
+  const relevantHeaders = {};
+  for (const [key, value] of Object.entries(lastError.headers || {})) {
+    if (key.toLowerCase().includes('rate') || 
+        key.toLowerCase().includes('limit') || 
+        key.toLowerCase().includes('request-id') || 
+        key.toLowerCase().includes('error')) {
+      relevantHeaders[key] = value;
+    }
+  }
+  
+  if (Object.keys(relevantHeaders).length > 0) {
+    formattedError += `\nHeaders: ${JSON.stringify(relevantHeaders, null, 2)}`;
+  }
+  
+  return formattedError;
+}
+
 export function createAssistantAPIErrorMessage(
   content: string,
 ): AssistantMessage {
+  const formattedContent = formatApiErrorMessage(content);
+  
   return baseCreateAssistantMessage(
     [
       {
         type: 'text' as const,
-        text: content === '' ? NO_CONTENT_MESSAGE : content,
+        text: formattedContent === '' ? NO_CONTENT_MESSAGE : formattedContent,
         citations: [],
       },
     ],

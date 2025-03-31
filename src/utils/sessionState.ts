@@ -4,6 +4,15 @@ type SessionState = {
   currentError: string | null;
   currentApiKeyIndex: Record<'small' | 'large', number>;
   failedApiKeys: Record<'small' | 'large', string[]>;
+  lastApiError: {
+    timestamp: number;
+    status: number | null;
+    message: string;
+    headers: Record<string, string>;
+    provider: string;
+    apiKey: string; // Partial key for identification
+    details: any; // Full error details
+  } | null;
 }
 
 const isDebug = process.argv.includes('--debug') || process.argv.includes('-d') || process.env.DEBUG === 'true';
@@ -13,6 +22,7 @@ const sessionState: SessionState = {
   currentError: null,
   currentApiKeyIndex: { small: -1, large: -1 },
   failedApiKeys: { small: [], large: [] },
+  lastApiError: null,
 } as const;
 
 function setSessionState<K extends keyof SessionState>(key: K, value: SessionState[K]): void;
