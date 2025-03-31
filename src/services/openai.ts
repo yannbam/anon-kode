@@ -181,6 +181,58 @@ async function handleApiError(
   requestId: string
 ): Promise<OpenAI.ChatCompletion | AsyncIterable<OpenAI.ChatCompletionChunk>> {
   let errMsg = error.error?.message || error.message || error;
+  const status = response?.status;
+  const headers = {};
+  
+  // Extract all headers for better diagnostics
+  if (response?.headers) {
+    for (const [key, value] of response.headers.entries()) {
+      headers[key] = value;
+    }
+  }
+  
+  // Log the detailed error information
+  const detailedError = {
+    status,
+    headers,
+    error: error,
+    rawErrorMessage: errMsg,
+    attempt,
+    maxAttempts
+  };
+  
+  try {
+    rawLogger.logApiError('openai', requestId, detailedError, 0);
+  } catch (logError) {
+    console.error('Failed to log detailed API error:', logError);
+  }
+  let errMsg = error.error?.message || error.message || error;
+  const status = response?.status;
+  const headers = {};
+  
+  // Extract all headers for better diagnostics
+  if (response?.headers) {
+    for (const [key, value] of response.headers.entries()) {
+      headers[key] = value;
+    }
+  }
+  
+  // Log the detailed error information
+  const detailedError = {
+    status,
+    headers,
+    error: error,
+    rawErrorMessage: errMsg,
+    attempt,
+    maxAttempts
+  };
+  
+  try {
+    rawLogger.logApiError('openai', requestId, detailedError, 0);
+  } catch (logError) {
+    console.error('Failed to log detailed API error:', logError);
+  }
+  
   if (errMsg) {
     if (typeof errMsg !== 'string') {
       errMsg = JSON.stringify(errMsg);
@@ -233,10 +285,12 @@ async function handleApiError(
   logEvent('unhandled_api_error', {
     model: opts.model,
     error: errMsg,
-    error_message: errMsg
+    error_message: errMsg,
+    status_code: status?.toString() || 'unknown',
+    headers: JSON.stringify(headers)
   })
   
-  throw new Error(`API request failed: ${error.error?.message || JSON.stringify(error)}`);
+  throw new Error(`API request failed (${response?.status || 'unknown'}): ${errMsg}\nHeaders: ${JSON.stringify(headers, null, 2)}`);
 }
 
 export async function getCompletion(
@@ -255,18 +309,32 @@ export async function getCompletion(
   const allKeysFailed = failedKeys.length === availableKeys.length && availableKeys.length > 0
 
   if (attempt >= maxAttempts || allKeysFailed) {
+    // Get detailed information about the error
+    const failedKeysCount = failedKeys.length;
+    const availableKeysCount = availableKeys.length;
+    const detailedError = {
+      message: 'Max attempts reached or all API keys failed',
+      details: {
+        attempt,
+        maxAttempts,
+        failedKeysCount,
+        availableKeysCount,
+        allKeysFailed
+      }
+    };
+
     // Log the error before throwing
     try {
       rawLogger.logApiError(
         'openai',
         requestId,
-        new Error('Max attempts reached or all API keys failed'),
+        detailedError,
         0
       );
     } catch (logError) {
       console.error('Failed to log API error:', logError);
     }
-    throw new Error('Max attempts reached or all API keys failed')
+    throw new Error(`API request failed: Max attempts reached (${attempt}/${maxAttempts}) or all API keys failed (${failedKeysCount}/${availableKeysCount} keys failed)`);
   }
 
   const apiKey = getActiveApiKey(config, type)
