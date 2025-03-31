@@ -1,5 +1,17 @@
 # TODOs
 
+## ESM Migration Testing Issues
+
+### Anthropic API Not Found Error
+- **Issue**: When testing connection to Anthropic API, getting a "API request failed: Not Found" error
+- **Root cause**: The Anthropic API provider is commented out in `models.ts` with status: "wip" (work in progress)
+- **Analysis**: Looking at the `claude.ts` service in the application, it appears the code is trying to connect to the Anthropic API using the OpenAI client with the Anthropic base URL. This is likely failing because:
+  1. The Anthropic provider may not be fully implemented yet (marked as "wip")
+  2. The OpenAI client is being used to access the Anthropic API, but Anthropic's API structure is different
+  3. The path being requested likely doesn't exist on the Anthropic API server
+- **Status**: Not a direct ESM migration issue, but a pre-existing API compatibility issue
+- **Recommendation**: Leave as is for now, since it's marked as work in progress
+
 ## Terminal Rendering Issues
 
 ### Model Selector Escape Key Problem
