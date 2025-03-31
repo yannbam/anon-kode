@@ -14,13 +14,16 @@ This document outlines a comprehensive testing strategy to verify that the ESM (
 
 - **Command Processing**
   - [X] Test basic slash commands (/help, /model, etc.)
-  - [ ] Verify command output renders correctly
+  - [X] Verify command output renders correctly
   - [ ] Test interactive commands that use dialog boxes
 
 ### 2. Core Feature Testing
 
 - **Model Integration**
-  - [ ] Test connection to different AI providers
+  - [X] Test connection to different AI providers
+    - [X] Openrouter
+    - [X] Anthropic API Error: API request failed: Not Found (WIP feature)
+    - [X] OpenAI Can't test
   - [ ] Verify model selection and switching works
   - [ ] Test response streaming functions correctly
 
