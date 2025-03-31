@@ -36,13 +36,24 @@ type ReasoningEffortOption = 'low' | 'medium' | 'high';
 function useEscapeNavigation(onEscape: () => void, abortController?: AbortController) {
   // Use a ref to track if we've handled the escape key
   const handledRef = useRef(false);
+  // Use a ref to track if the component is mounted
+  const isMountedRef = useRef(true);
+  
+  // Set up cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   
   useInput((input, key) => {
-    if (key.escape && !handledRef.current) {
+    if (key.escape && !handledRef.current && isMountedRef.current) {
       handledRef.current = true;
       // Reset after a short delay to allow for multiple escapes
       setTimeout(() => {
-        handledRef.current = false;
+        if (isMountedRef.current) {
+          handledRef.current = false;
+        }
       }, 100);
       // Make sure we don't call onEscape if it's undefined
       if (onEscape) {
@@ -82,11 +93,19 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
   
   // Function to go back to the previous screen
   const goBack = () => {
+    console.debug(`ModelSelector: goBack called, current stack: ${JSON.stringify(screenStack)}`)
+    
     if (screenStack.length > 1) {
       // Remove the current screen from the stack
-      setScreenStack(prev => prev.slice(0, -1))
+      console.debug(`ModelSelector: Going back one screen in goBack function`)
+      setScreenStack(prev => {
+        const newStack = prev.slice(0, -1)
+        console.debug(`ModelSelector: New stack after goBack: ${JSON.stringify(newStack)}`)
+        return newStack
+      })
     } else {
       // If we're at the first screen, call onDone to exit
+      console.debug(`ModelSelector: At first screen, exiting`)
       onDone()
     }
   }
@@ -453,9 +472,20 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
   
   // Use escape navigation hook with screen refresh
   useEscapeNavigation(() => {
+    // Only call handleBack if the component is still mounted
+    // Add more detailed logging to track navigation actions
+    console.debug(`ModelSelector: Processing ESC key, current screen: ${currentScreen}`);
+    // Store the current screen to properly handle navigation
+    const currentScreenBeforeBack = currentScreen;
+    
+    // Call handleBack which will update the screen stack if needed
     handleBack();
-    // Add a small delay and force screen refresh
-    setTimeout(forceScreenRefresh, 50);
+    
+    // Only refresh if we're not exiting from the first screen
+    if (currentScreenBeforeBack !== 'modelType') {
+      // Add a small delay and force screen refresh
+      setTimeout(forceScreenRefresh, 50);
+    }
   }, abortController);
   
   // Handle cursor offset changes
