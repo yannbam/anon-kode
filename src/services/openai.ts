@@ -202,6 +202,8 @@ async function handleApiError(
   };
   
   try {
+    // Import dynamically to avoid circular dependencies
+    const { rawLogger } = await import('../utils/sessionLogger.js');
     rawLogger.logApiError('openai', requestId, detailedError, 0);
   } catch (logError) {
     console.error('Failed to log detailed API error:', logError);
