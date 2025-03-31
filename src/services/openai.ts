@@ -206,33 +206,6 @@ async function handleApiError(
   } catch (logError) {
     console.error('Failed to log detailed API error:', logError);
   }
-  let errMsg = error.error?.message || error.message || error;
-  const status = response?.status;
-  const headers = {};
-  
-  // Extract all headers for better diagnostics
-  if (response?.headers) {
-    for (const [key, value] of response.headers.entries()) {
-      headers[key] = value;
-    }
-  }
-  
-  // Log the detailed error information
-  const detailedError = {
-    status,
-    headers,
-    error: error,
-    rawErrorMessage: errMsg,
-    attempt,
-    maxAttempts
-  };
-  
-  try {
-    rawLogger.logApiError('openai', requestId, detailedError, 0);
-  } catch (logError) {
-    console.error('Failed to log detailed API error:', logError);
-  }
-  
   if (errMsg) {
     if (typeof errMsg !== 'string') {
       errMsg = JSON.stringify(errMsg);
