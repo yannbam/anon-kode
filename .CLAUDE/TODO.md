@@ -13,6 +13,14 @@
 - **Priority**: Medium
 - **Possible cause**: Interaction between Ink rendering and terminal control sequences
 
+### UI Text Duplication Issue
+- **Issue**: Dialog content appears to be rendering twice - once in the dialog box and once above it
+- **Current behavior**: When opening the Model Selector dialog, the same text appears duplicated outside the dialog boundary
+- **First observed**: After ESM migration, in the ModelSelector component
+- **May also affect**: Other dialog components and possibly the prompt input area
+- **Priority**: Low (doesn't affect functionality)
+- **Possible cause**: React re-rendering issue or Ink component rendering behavior changes in ESM context
+
 ## Sharp Image Processing
 
 ```typescript
