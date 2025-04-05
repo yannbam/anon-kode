@@ -439,10 +439,21 @@ export class RawLogger {
     // Clear any existing buffer for this request ID (in case of retries)
     this.streamChunkBuffers.delete(requestId);
     
+    // Extract baseURL from endpoint if available
+    let baseURL = '';
+    try {
+      const endpointUrl = new URL(endpoint);
+      baseURL = `${endpointUrl.protocol}//${endpointUrl.host}`;
+    } catch (e) {
+      // If endpoint is not a valid URL, try to get it from headers
+      baseURL = headers['X-Base-URL'] || '';
+    }
+
     this.writeToLog({
       timestamp: this.getCurrentTimestamp(),
       type: 'api_request',
-      provider,
+      provider, // Protocol (openai, anthropic)
+      baseURL,  // Actual endpoint base URL
       request_id: requestId,
       data: {
         endpoint,
@@ -480,15 +491,37 @@ export class RawLogger {
     this.ensureInitialized();
     if (!this.enabled) return;
     
+    // Extract baseURL from error if available
+    let baseURL = '';
+    if (error && typeof error === 'object') {
+      baseURL = error.baseURL || '';
+      
+      // Include the full error object for better debugging
+      if (error.endpoint) {
+        try {
+          const endpointUrl = new URL(error.endpoint);
+          if (!baseURL) {
+            baseURL = `${endpointUrl.protocol}//${endpointUrl.host}`;
+          }
+        } catch (e) {
+          // Ignore URL parsing errors
+        }
+      }
+    }
+
     this.writeToLog({
       timestamp: this.getCurrentTimestamp(),
       type: 'api_error',
       provider,
+      baseURL,  // Include actual endpoint
       request_id: requestId,
       data: {
         error: error instanceof Error ? error.message : String(error),
+        baseURL: baseURL, // Include baseURL in data for clarity
+        endpoint: error.endpoint || '',
         stack: error instanceof Error ? error.stack : undefined,
-        duration_ms: durationMs
+        duration_ms: durationMs,
+        details: error  // Include full error details
       }
     });
     
