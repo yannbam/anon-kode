@@ -949,7 +949,7 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
                 <Text>
                   <Text bold>Small Model: </Text>
                   <Text color={theme.suggestion}>
-                    {modelTypeToChange === 'both' ? selectedModel : config.smallModelName || 'Not set'}
+                    {selectedModel}
                   </Text>
                   <Text dimColor> (for simpler tasks)</Text>
                 </Text>
