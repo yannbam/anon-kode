@@ -65,8 +65,16 @@ function useEscapeNavigation(onEscape: () => void, abortController?: AbortContro
 
 function printModelConfig() {
   const config = getGlobalConfig()
-  let res = `  ⎿  ${config.largeModelName} | ${config.largeModelMaxTokens} ${config.largeModelReasoningEffort ? config.largeModelReasoningEffort : ''}`
-  res += `  |  ${config.smallModelName} | ${config.smallModelMaxTokens} ${config.smallModelReasoningEffort ? config.smallModelReasoningEffort : ''}`
+  // Format max tokens, showing default if undefined
+  const largeMaxTokens = config.largeModelMaxTokens ? config.largeModelMaxTokens : 'default'
+  const smallMaxTokens = config.smallModelMaxTokens ? config.smallModelMaxTokens : 'default'
+  
+  // Format reasoning effort, showing empty string if undefined
+  const largeEffort = config.largeModelReasoningEffort ? config.largeModelReasoningEffort : ''
+  const smallEffort = config.smallModelReasoningEffort ? config.smallModelReasoningEffort : ''
+  
+  let res = `  ⎿  ${config.largeModelName} | ${largeMaxTokens} ${largeEffort}`
+  res += `  |  ${config.smallModelName} | ${smallMaxTokens} ${smallEffort}`
   console.log(chalk.gray(res))
 }
 
@@ -392,8 +400,11 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
       if (apiKey) {
         newConfig.largeModelApiKeys = [apiKey]
       }
-      if (maxTokens) {
+      if (maxTokens && maxTokens.trim() !== '') {
         newConfig.largeModelMaxTokens = parseInt(maxTokens)
+      } else {
+        // Set to undefined rather than leaving the previous value
+        newConfig.largeModelMaxTokens = undefined
       }
       if (reasoningEffort) {
         newConfig.largeModelReasoningEffort = reasoningEffort
@@ -413,8 +424,11 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
       if (apiKey) {
         newConfig.smallModelApiKeys = [apiKey]
       }
-      if (maxTokens) {
+      if (maxTokens && maxTokens.trim() !== '') {
         newConfig.smallModelMaxTokens = parseInt(maxTokens)
+      } else {
+        // Set to undefined rather than leaving the previous value
+        newConfig.smallModelMaxTokens = undefined
       }
       if (reasoningEffort) {
         newConfig.smallModelReasoningEffort = reasoningEffort
