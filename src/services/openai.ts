@@ -190,6 +190,9 @@ async function handleApiError(
     }
   }
   
+  // Get the baseURL
+  const baseURL = type === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL;
+  
   // Log the detailed error information
   const detailedError = {
     status,
@@ -197,7 +200,9 @@ async function handleApiError(
     error: error,
     rawErrorMessage: errMsg,
     attempt,
-    maxAttempts
+    maxAttempts,
+    baseURL,
+    endpoint: `${baseURL}/chat/completions`
   };
   
   try {
@@ -273,11 +278,12 @@ async function handleApiError(
     message: errMsg,
     headers,
     provider: 'openai',
+    baseURL,
     apiKey: partialKey,
     details: error
   });
   
-  throw new Error(`API request failed (${response?.status || 'unknown'}): ${errMsg}\nHeaders: ${JSON.stringify(headers, null, 2)}`);
+  throw new Error(`API request failed to ${baseURL} (${response?.status || 'unknown'}): ${errMsg}\nHeaders: ${JSON.stringify(headers, null, 2)}`);
 }
 
 export async function getCompletion(
@@ -323,11 +329,12 @@ export async function getCompletion(
     
     // Construct improved error message with detailed information from last API error
     const lastError = getSessionState('lastApiError');
-    let errorMessage = `API request failed: Max attempts reached (${attempt}/${maxAttempts}) or all API keys failed (${failedKeysCount}/${availableKeysCount} keys failed)`;
+    const baseURL = type === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL;
+    let errorMessage = `API request to ${baseURL} failed: Max attempts reached (${attempt}/${maxAttempts}) or all API keys failed (${failedKeysCount}/${availableKeysCount} keys failed)`;
     
     if (lastError) {
       // Add the actual error message from the provider
-      errorMessage += `\nProvider error: ${lastError.message}`;
+      errorMessage += `\nProvider error from ${baseURL}: ${lastError.message}`;
       
       // Add status code and important headers
       errorMessage += `\nStatus: ${lastError.status || 'unknown'}`;
@@ -430,9 +437,13 @@ export async function getCompletion(
         'POST',
         {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${apiKey}`,
+          'X-Base-URL': baseURL // Add baseURL for clarity
         },
-        JSON.parse(JSON.stringify(opts)) // Clone to avoid modifying the original
+        JSON.parse(JSON.stringify({
+          ...opts,
+          _debug: { baseURL }  // Include baseURL in request body for debugging
+        })) // Clone to avoid modifying the original
       );
     } catch (logError) {
       console.error('Failed to log API request:', logError);
@@ -444,6 +455,7 @@ export async function getCompletion(
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'X-Base-URL': baseURL   // Add baseURL for clarity
         },
         body: JSON.stringify({ ...opts, stream: true }),
         dispatcher: proxy,
@@ -455,7 +467,11 @@ export async function getCompletion(
           // Log the error
           try {
             const durationMs = Date.now() - requestStartTime;
-            rawLogger.logApiError('openai', requestId, error, durationMs);
+            rawLogger.logApiError('openai', requestId, {
+              ...error,
+              baseURL: baseURL,
+              endpoint: `${baseURL}/chat/completions`
+            }, durationMs);
           } catch (logError) {
             console.error('Failed to log API error:', logError);
           }
@@ -466,7 +482,11 @@ export async function getCompletion(
           // Log the error
           try {
             const durationMs = Date.now() - requestStartTime;
-            rawLogger.logApiError('openai', requestId, error, durationMs);
+            rawLogger.logApiError('openai', requestId, {
+              ...error,
+              baseURL: baseURL,
+              endpoint: `${baseURL}/chat/completions`
+            }, durationMs);
           } catch (logError) {
             console.error('Failed to log API error:', logError);
           }
@@ -571,6 +591,7 @@ export async function getCompletion(
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'X-Base-URL': baseURL   // Add baseURL for clarity
       },
       body: JSON.stringify(opts),
       dispatcher: proxy,
@@ -666,8 +687,14 @@ export async function getCompletion(
   } catch (error) {
     // Log the network error
     try {
+      const baseURL = type === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL;
       // No duration calculation needed for network errors
-      rawLogger.logApiError('openai', requestId, error, 0);
+      rawLogger.logApiError('openai', requestId, {
+        ...error,
+        baseURL: baseURL,
+        endpoint: `${baseURL}/chat/completions`,
+        errorType: 'network_error'
+      }, 0);
     } catch (logError) {
       console.error('Failed to log API error:', logError);
     }
@@ -679,6 +706,7 @@ export async function getCompletion(
       return getCompletion(type, opts, attempt + 1, maxAttempts, requestId)
     }
     // Store detailed network error information in session state
+    const baseURL = type === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL;
     setSessionState('lastApiError', {
       timestamp: Date.now(),
       status: null,
@@ -686,10 +714,12 @@ export async function getCompletion(
       headers: {},
       provider: 'openai',
       apiKey: 'network_error',
+      baseURL: baseURL,
+      endpoint: `${baseURL}/chat/completions`,
       details: error
     });
     
-    throw new Error(`Network error: ${error.message || 'Unknown error'}`);
+    throw new Error(`Network error connecting to ${baseURL}: ${error.message || 'Unknown error'}`);
   } 
 }
 

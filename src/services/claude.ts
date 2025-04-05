@@ -32,6 +32,7 @@ import { Tool } from '../Tool'
 import { getAnthropicApiKey, getOrCreateUserID, getGlobalConfig, getActiveApiKey, markApiKeyAsFailed } from '../utils/config'
 import { logError, SESSION_ID } from '../utils/log'
 import { USER_AGENT } from '../utils/http'
+import { setSessionState } from '../utils/sessionState'
 import {
   createAssistantAPIErrorMessage,
   normalizeContentFromAPI,
@@ -691,31 +692,43 @@ async function querySonnetWithPromptCaching(
   return queryOpenAI('large', messages, systemPrompt, maxThinkingTokens, tools, signal, options)
 }
 
-function getAssistantMessageFromError(error: unknown): AssistantMessage {
+function getAssistantMessageFromError(error: unknown, modelType?: 'large' | 'small'): AssistantMessage {
+  const config = getGlobalConfig();
+  const baseURL = modelType === 'large' ? config.largeModelBaseURL : (modelType === 'small' ? config.smallModelBaseURL : 'unknown');
+  
+  // Store error details in session state for formatApiErrorMessage to use
+  setSessionState('lastApiError', {
+    timestamp: Date.now(),
+    provider: 'openai', // Protocol
+    baseURL: baseURL,   // Actual endpoint base
+    message: error instanceof Error ? error.message : String(error),
+    details: error
+  });
+
   if (error instanceof Error && error.message.includes('prompt is too long')) {
-    return createAssistantAPIErrorMessage(PROMPT_TOO_LONG_ERROR_MESSAGE)
+    return createAssistantAPIErrorMessage(`${PROMPT_TOO_LONG_ERROR_MESSAGE} (${baseURL})`)
   }
   if (
     error instanceof Error &&
     error.message.includes('Your credit balance is too low')
   ) {
-    return createAssistantAPIErrorMessage(CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE)
+    return createAssistantAPIErrorMessage(`${CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE} (${baseURL})`)
   }
   if (
     error instanceof Error &&
     error.message.toLowerCase().includes('x-api-key')
   ) {
-    return createAssistantAPIErrorMessage(INVALID_API_KEY_ERROR_MESSAGE)
+    return createAssistantAPIErrorMessage(`${INVALID_API_KEY_ERROR_MESSAGE} (${baseURL})`)
   }
   if (error instanceof Error) {
     if(process.env.NODE_ENV === 'development') {
       console.log(error)
     }
     return createAssistantAPIErrorMessage(
-      `${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
+      `${API_ERROR_MESSAGE_PREFIX} from ${baseURL}: ${error.message}`,
     )
   }
-  return createAssistantAPIErrorMessage(API_ERROR_MESSAGE_PREFIX)
+  return createAssistantAPIErrorMessage(`${API_ERROR_MESSAGE_PREFIX} from ${baseURL}`)
 }
 
 function addCacheBreakpoints(
@@ -833,14 +846,25 @@ async function queryOpenAI(
       
       // Log API request
       try {
+        const baseURL = modelType === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL || 'https://api.openai.com';
         rawLogger.logApiRequest(
           'openai', 
           requestId, 
-          `${config.largeModelBaseURL || config.smallModelBaseURL || 'https://api.openai.com'}/chat/completions`,
+          `${baseURL}/chat/completions`,
           'POST',
-          { 'Content-Type': 'application/json' },
+          { 
+            'Content-Type': 'application/json',
+            'X-Base-URL': baseURL // Add baseURL for clarity
+          },
           // Clone the request to avoid modifying the original
-          JSON.parse(JSON.stringify(opts))
+          JSON.parse(JSON.stringify({
+            ...opts,
+            _debug: { 
+              baseURL,
+              provider: config.primaryProvider,
+              modelType
+            }
+          }))
         );
       } catch (logError) {
         console.error('Failed to log API request:', logError);
@@ -854,7 +878,14 @@ async function queryOpenAI(
         // Log API error
         try {
           const durationMs = Date.now() - requestStartTime;
-          rawLogger.logApiError('openai', requestId, error, durationMs);
+          const baseURL = modelType === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL || 'https://api.openai.com';
+          rawLogger.logApiError('openai', requestId, {
+            ...error,
+            baseURL: baseURL,
+            endpoint: `${baseURL}/chat/completions`,
+            provider: config.primaryProvider,
+            modelType: modelType
+          }, durationMs);
         } catch (logError) {
           console.error('Failed to log API error:', logError);
         }
@@ -931,7 +962,7 @@ async function queryOpenAI(
     } catch (logError) {
       console.error('Failed to log final API error:', logError);
     }
-    return getAssistantMessageFromError(error)
+    return getAssistantMessageFromError(error, modelType)
   }
   const durationMs = Date.now() - start
   const durationMsIncludingRetries = Date.now() - startIncludingRetries
