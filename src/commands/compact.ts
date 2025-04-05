@@ -8,6 +8,8 @@ import {
 } from '../utils/messages.js'
 import { getCodeStyle } from '../utils/style'
 import { clearTerminal } from '../utils/terminal'
+import { sessionLogger } from '../utils/sessionLogger.js'
+import { getGlobalConfig } from '../utils/config.js'
 
 const compact = {
   type: 'local',
@@ -73,10 +75,8 @@ const compact = {
     }
 
     // Import session logger here to avoid circular dependency - proper ES Module dynamic import
-    const sessionLoggerModule = await import('../utils/sessionLogger.js');
-    const configModule = await import('../utils/config.js');
-    const { sessionLogger } = sessionLoggerModule;
-    const { getGlobalConfig } = configModule;
+    // Using static imports from the top of the file
+    // No dynamic imports needed, circular dependency is resolved properly
     
     // Clear screen and messages
     await clearTerminal()

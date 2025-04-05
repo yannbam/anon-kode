@@ -28,6 +28,8 @@ import {
   NormalizedMessage,
   normalizeMessagesForAPI,
 } from './utils/messages.js'
+import { sessionLogger } from './utils/sessionLogger.js'
+import { getGlobalConfig } from './utils/config.js'
 import { BashTool } from './tools/BashTool/BashTool'
 import { getCwd } from './utils/state'
 
@@ -289,11 +291,8 @@ export async function* runToolUse(
   toolUseContext: ToolUseContext,
   shouldSkipPermissionCheck?: boolean,
 ): AsyncGenerator<Message, void> {
-  // Import here to avoid circular dependency - proper ES Module dynamic import
-  const sessionLoggerModule = await import('./utils/sessionLogger.js');
-  const configModule = await import('./utils/config.js');
-  const { sessionLogger } = sessionLoggerModule;
-  const { getGlobalConfig } = configModule;
+  // Using static imports from the top of the file
+  // No dynamic imports needed, circular dependency is resolved properly
   
   const toolName = toolUse.name
   const tool = toolUseContext.options.tools.find(t => t.name === toolName)
@@ -477,11 +476,8 @@ async function* checkPermissionsAndCallTool(
             toolName: tool.name,
           })
           
-          // Import here to avoid circular dependency - proper ES Module dynamic import
-          const sessionLoggerModule = await import('./utils/sessionLogger.js');
-          const configModule = await import('./utils/config.js');
-          const { sessionLogger } = sessionLoggerModule;
-          const { getGlobalConfig } = configModule;
+          // Using static imports from the top of the file
+          // No dynamic imports needed, circular dependency is resolved properly
           
           // Log successful tool result
           if (getGlobalConfig().enableSessionLogging) {
@@ -533,11 +529,8 @@ async function* checkPermissionsAndCallTool(
       toolInput: JSON.stringify(input).slice(0, 1000),
     })
     
-    // Import here to avoid circular dependency - proper ES Module dynamic import
-    const sessionLoggerModule = await import('./utils/sessionLogger.js');
-    const configModule = await import('./utils/config.js');
-    const { sessionLogger } = sessionLoggerModule;
-    const { getGlobalConfig } = configModule;
+    // Using static imports from the top of the file
+    // No dynamic imports needed, circular dependency is resolved properly
     
     // Log tool error
     if (getGlobalConfig().enableSessionLogging) {

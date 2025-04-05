@@ -2,6 +2,7 @@ import '@anthropic-ai/sdk/shims/node'
 import Anthropic, { APIConnectionError, APIError } from '@anthropic-ai/sdk'
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk'
+import { sessionLogger, rawLogger } from '../utils/sessionLogger.js'
 
 // Extended interfaces to match Anthropic implementation
 interface ExtendedAnthropicBedrock extends AnthropicBedrock {
@@ -741,8 +742,8 @@ async function queryOpenAI(
   },
 ): Promise<AssistantMessage> {
   // Import here to avoid circular dependency - proper ES Module dynamic import
-  const sessionLoggerModule = await import('../utils/sessionLogger.js');
-  const { sessionLogger, rawLogger } = sessionLoggerModule;
+  // Using static imports from the top of the file
+  // No dynamic imports needed, circular dependency is resolved properly
   
   //const anthropic = await getAnthropicClient(options.model)
   const config = getGlobalConfig()
@@ -992,8 +993,8 @@ export async function queryHaiku({
   signal?: AbortSignal
 }): Promise<AssistantMessage> {
   // Import here to avoid circular dependency - proper ES Module dynamic import
-  const sessionLoggerModule = await import('../utils/sessionLogger.js');
-  const { rawLogger } = sessionLoggerModule;
+  // Using static imports from the top of the file
+  // No dynamic imports needed, circular dependency is resolved properly
   
   return await withVCR(
     [

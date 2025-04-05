@@ -4,8 +4,7 @@ import { ProxyAgent, fetch, Response } from 'undici'
 import { setSessionState, getSessionState } from "../utils/sessionState";
 import { logEvent } from "../services/statsig";
 import { randomUUID } from 'crypto';
-
-// We'll import the rawLogger dynamically to avoid circular dependencies
+import { rawLogger } from "../utils/sessionLogger.js";
 
 enum ModelErrorType {
   MaxLength = '1024',
@@ -202,8 +201,7 @@ async function handleApiError(
   };
   
   try {
-    // Import dynamically to avoid circular dependencies
-    const { rawLogger } = await import('../utils/sessionLogger.js');
+    // Using static import from the top of the file
     rawLogger.logApiError('openai', requestId, detailedError, 0);
   } catch (logError) {
     console.error('Failed to log detailed API error:', logError);
@@ -289,8 +287,7 @@ export async function getCompletion(
   maxAttempts: number = 5,
   requestId: string = randomUUID() // Generate a unique request ID for logging
 ): Promise<OpenAI.ChatCompletion | AsyncIterable<OpenAI.ChatCompletionChunk>> {
-  // Dynamic import to avoid circular dependencies
-  const { rawLogger } = await import('../utils/sessionLogger.js');
+  // Using static import from the top of the file
   
   const config = getGlobalConfig()
   const failedKeys = getSessionState('failedApiKeys')[type]
@@ -710,8 +707,7 @@ export function createStreamProcessor(
     let buffer = ''
     
     try {
-      // Import dynamically to avoid circular dependencies
-      const { rawLogger } = await import('../utils/sessionLogger.js');
+      // Using static import from the top of the file
       let chunkIndex = 0;
       
       while (true) {
@@ -822,7 +818,7 @@ export function createStreamProcessor(
       // Log the error if we have a requestId
       if (requestId) {
         try {
-          const { rawLogger } = await import('../utils/sessionLogger.js');
+          // Using static import from the top of the file
           rawLogger.logApiError(
             'openai', 
             requestId, 
@@ -843,7 +839,7 @@ export function createStreamProcessor(
         // Ensure we always log stream completion if we have a requestId
         if (requestId) {
           try {
-            const { rawLogger } = await import('../utils/sessionLogger.js');
+            // Using static import from the top of the file
             rawLogger.logApiStreamComplete('openai', requestId);
           } catch (logError) {
             console.error('Failed to log stream completion in finally block:', logError);
