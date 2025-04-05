@@ -37,7 +37,8 @@ export class SessionLogger {
   private toolCallStatusMap = new Map<string, ToolCall>();
 
   private constructor() {
-    this.initialize();
+    // Don't initialize immediately in the constructor
+    // Initialization will happen lazily when needed
   }
 
   public static getInstance(): SessionLogger {
@@ -45,6 +46,13 @@ export class SessionLogger {
       SessionLogger.instance = new SessionLogger();
     }
     return SessionLogger.instance;
+  }
+
+  // Lazy initialization
+  private ensureInitialized(): void {
+    if (this.logFile === null) {
+      this.initialize();
+    }
   }
 
   // Initialize logger based on config
@@ -136,6 +144,7 @@ export class SessionLogger {
 
   // Log user message
   public logUserMessage(id: string, text: string): void {
+    this.ensureInitialized();
     if (!this.enabled || this.isDuplicate(id)) return;
     
     this.writeToLog({
@@ -150,6 +159,7 @@ export class SessionLogger {
 
   // Log assistant response
   public logAssistantMessage(id: string, model: string, content: string | any[]): void {
+    this.ensureInitialized();
     if (!this.enabled || this.isDuplicate(id)) return;
     
     this.writeToLog({
@@ -165,6 +175,7 @@ export class SessionLogger {
 
   // Log tool call request
   public logToolCallRequest(id: string, tool: string, input: any): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     const toolCall: ToolCall = {
@@ -187,6 +198,7 @@ export class SessionLogger {
 
   // Log tool call result
   public logToolCallResult(id: string, output: any, status: 'success' | 'error' | 'canceled'): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     const toolCall = this.toolCallStatusMap.get(id);
@@ -210,6 +222,7 @@ export class SessionLogger {
 
   // Log command execution
   public logCommand(command: string, args?: any): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     this.writeToLog({
@@ -224,6 +237,7 @@ export class SessionLogger {
 
   // Log conversation fork
   public logFork(newForkId: number, reason: string): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     this.lastForkId = newForkId;
     
@@ -239,6 +253,7 @@ export class SessionLogger {
 
   // Log conversation clear or compact
   public logContextChange(action: 'clear' | 'compact', summary?: string): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     this.writeToLog({
@@ -279,6 +294,7 @@ export class SessionLogger {
 
   // Enable or disable logging
   public setEnabled(enabled: boolean): void {
+    this.ensureInitialized();
     if (this.enabled !== enabled) {
       this.enabled = enabled;
       if (enabled && !this.logFile) {
@@ -289,6 +305,7 @@ export class SessionLogger {
 
   // Get current fork ID
   public getCurrentForkId(): number {
+    this.ensureInitialized();
     return this.lastForkId;
   }
 }
@@ -303,7 +320,8 @@ export class RawLogger {
   private streamChunkBuffers: Map<string, any[]> = new Map();
 
   private constructor() {
-    this.initialize();
+    // Don't initialize immediately in the constructor
+    // Initialization will happen lazily when needed
   }
 
   public static getInstance(): RawLogger {
@@ -311,6 +329,13 @@ export class RawLogger {
       RawLogger.instance = new RawLogger();
     }
     return RawLogger.instance;
+  }
+
+  // Lazy initialization
+  private ensureInitialized(): void {
+    if (this.logFile === null) {
+      this.initialize();
+    }
   }
 
   // Initialize logger based on config
@@ -378,6 +403,7 @@ export class RawLogger {
 
   // Write raw log entry to file
   private writeToLog(data: any): void {
+    this.ensureInitialized();
     if (!this.enabled || !this.logFile) return;
     
     try {
@@ -407,6 +433,7 @@ export class RawLogger {
 
   // Log API request
   public logApiRequest(provider: string, requestId: string, endpoint: string, method: string, headers: any, body: any): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     // Clear any existing buffer for this request ID (in case of retries)
@@ -428,6 +455,7 @@ export class RawLogger {
 
   // Log API response
   public logApiResponse(provider: string, requestId: string, status: number, headers: any, body: any, durationMs: number): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     this.writeToLog({
@@ -449,6 +477,7 @@ export class RawLogger {
 
   // Log API error
   public logApiError(provider: string, requestId: string, error: any, durationMs: number): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     this.writeToLog({
@@ -469,6 +498,7 @@ export class RawLogger {
 
   // Buffer API stream chunk (don't log immediately)
   public logApiStreamChunk(provider: string, requestId: string, chunk: any, index: number): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     // Create buffer for this request if it doesn't exist
@@ -506,6 +536,7 @@ export class RawLogger {
   
   // Log all buffered stream chunks as one entry
   public logApiStreamComplete(provider: string, requestId: string): void {
+    this.ensureInitialized();
     if (!this.enabled) return;
     
     // Check if we have any buffered chunks for this request
@@ -533,6 +564,41 @@ export class RawLogger {
   }
 }
 
-// Singleton exports
-export const sessionLogger = SessionLogger.getInstance();
-export const rawLogger = RawLogger.getInstance();
+// Lazy singleton exports
+// This approach allows the singleton instances to be created on-demand
+// while maintaining the same interface for importing code
+export const sessionLogger = {
+  // Pass through all methods of SessionLogger
+  logUserMessage: (...args: Parameters<SessionLogger['logUserMessage']>) => 
+    SessionLogger.getInstance().logUserMessage(...args),
+  logAssistantMessage: (...args: Parameters<SessionLogger['logAssistantMessage']>) => 
+    SessionLogger.getInstance().logAssistantMessage(...args),
+  logToolCallRequest: (...args: Parameters<SessionLogger['logToolCallRequest']>) => 
+    SessionLogger.getInstance().logToolCallRequest(...args),
+  logToolCallResult: (...args: Parameters<SessionLogger['logToolCallResult']>) => 
+    SessionLogger.getInstance().logToolCallResult(...args),
+  logCommand: (...args: Parameters<SessionLogger['logCommand']>) => 
+    SessionLogger.getInstance().logCommand(...args),
+  logFork: (...args: Parameters<SessionLogger['logFork']>) => 
+    SessionLogger.getInstance().logFork(...args),
+  logContextChange: (...args: Parameters<SessionLogger['logContextChange']>) => 
+    SessionLogger.getInstance().logContextChange(...args),
+  setEnabled: (...args: Parameters<SessionLogger['setEnabled']>) => 
+    SessionLogger.getInstance().setEnabled(...args),
+  getCurrentForkId: (...args: Parameters<SessionLogger['getCurrentForkId']>) => 
+    SessionLogger.getInstance().getCurrentForkId(...args),
+};
+
+export const rawLogger = {
+  // Pass through all methods of RawLogger
+  logApiRequest: (...args: Parameters<RawLogger['logApiRequest']>) => 
+    RawLogger.getInstance().logApiRequest(...args),
+  logApiResponse: (...args: Parameters<RawLogger['logApiResponse']>) => 
+    RawLogger.getInstance().logApiResponse(...args),
+  logApiError: (...args: Parameters<RawLogger['logApiError']>) => 
+    RawLogger.getInstance().logApiError(...args),
+  logApiStreamChunk: (...args: Parameters<RawLogger['logApiStreamChunk']>) => 
+    RawLogger.getInstance().logApiStreamChunk(...args),
+  logApiStreamComplete: (...args: Parameters<RawLogger['logApiStreamComplete']>) => 
+    RawLogger.getInstance().logApiStreamComplete(...args),
+};
