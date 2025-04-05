@@ -32,6 +32,7 @@ import { UserBashInputMessage } from '../components/messages/UserBashInputMessag
 import { Spinner } from '../components/Spinner'
 import { BashTool } from '../tools/BashTool/BashTool'
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources/index.mjs'
+import { getSessionState } from './sessionState.js'
 
 export const INTERRUPT_MESSAGE = '[Request interrupted by user]'
 export const INTERRUPT_MESSAGE_FOR_TOOL_USE =
@@ -92,9 +93,7 @@ export function createAssistantMessage(content: string): AssistantMessage {
  * Format API error message from session state data
  */
 export function formatApiErrorMessage(errorContent: string): string {
-  // Import here to avoid circular dependency issues
-  const { getSessionState } = require('./sessionState');
-  const lastError = getSessionState ? getSessionState('lastApiError') : null;
+  const lastError = getSessionState('lastApiError');
   
   if (!lastError) {
     return errorContent;
