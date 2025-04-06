@@ -517,21 +517,14 @@ export function getAnthropicClient(model?: string): Anthropic | ExtendedAnthropi
     return client;
   }
 
-  // For direct Anthropic API access
-  let apiKey = process.env.ANTHROPIC_API_KEY;
+  // For direct Anthropic API access - use same pattern as other parts of codebase
+  const modelType = model?.includes('haiku') ? 'small' : 'large';
+  const apiKey = getActiveApiKey(config, modelType);
   
-  // If primaryProvider is Anthropic, also check largeModelApiKeys
-  if (config.primaryProvider === 'anthropic' && (!apiKey || apiKey === '')) {
-    const modelType = model?.includes('haiku') ? 'small' : 'large';
-    apiKey = getActiveApiKey(config, modelType) || getAnthropicApiKey();
-  } else {
-    apiKey = getAnthropicApiKey();
-  }
-
   if (!apiKey) {
     console.error(
       chalk.red(
-        'Please set an API key for Anthropic. Either set ANTHROPIC_API_KEY environment variable or configure it in the settings.',
+        'No API key found for Anthropic. Please configure it in the settings.',
       ),
     );
   }
