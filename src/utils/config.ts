@@ -255,6 +255,8 @@ export function saveGlobalConfig(config: GlobalConfig): void {
     }
     return
   }
+  
+  // Save to file system
   saveConfig(
     GLOBAL_CLAUDE_FILE,
     {
@@ -263,13 +265,32 @@ export function saveGlobalConfig(config: GlobalConfig): void {
     },
     DEFAULT_GLOBAL_CONFIG,
   )
+  
+  // Invalidate cache to ensure fresh reads get the updated config
+  refreshGlobalConfig();
+}
+
+// Cache the global config and provide a way to refresh it
+let globalConfigCache: GlobalConfig | null = null;
+
+// Clear the cache to force a fresh read from the file system
+export function refreshGlobalConfig(): void {
+  globalConfigCache = null;
 }
 
 export function getGlobalConfig(): GlobalConfig {
   if (process.env.NODE_ENV === 'test') {
     return TEST_GLOBAL_CONFIG_FOR_TESTING
   }
-  return getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG)
+  
+  // Return cached version if available
+  if (globalConfigCache !== null) {
+    return globalConfigCache;
+  }
+  
+  // Read from file and cache the result
+  globalConfigCache = getConfig(GLOBAL_CLAUDE_FILE, DEFAULT_GLOBAL_CONFIG);
+  return globalConfigCache;
 }
 
 // TODO: Decide what to do with this code
