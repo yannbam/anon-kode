@@ -776,8 +776,10 @@ async function queryAnthropicDirectly(
     })),
   );
 
-  const betas = ['tool_use:logging=false'];
-  const useBetas = PROMPT_CACHING_ENABLED && betas.length > 0;
+  // Remove beta feature flags as they're causing API errors
+  // const betas = ['tool_use:logging=false'];
+  // const useBetas = PROMPT_CACHING_ENABLED && betas.length > 0;
+  const useBetas = false;
   
   logEvent('tengu_api_query', {
     model: options.model,
@@ -786,7 +788,7 @@ async function queryAnthropicDirectly(
     ),
     temperature: String(MAIN_QUERY_TEMPERATURE),
     provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
-    ...(useBetas ? { betas: betas.join(',') } : {}),
+    // Beta features removed due to API incompatibility
   });
 
   const startIncludingRetries = Date.now();
@@ -811,7 +813,7 @@ async function queryAnthropicDirectly(
         temperature: MAIN_QUERY_TEMPERATURE,
         system,
         tools: toolSchemas.length > 0 ? toolSchemas : undefined,
-        ...(useBetas ? { betas } : {}),
+        // Beta features removed due to API incompatibility
         metadata: getMetadata(),
         ...(maxThinkingTokens > 0
           ? {
