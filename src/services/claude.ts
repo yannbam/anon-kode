@@ -346,7 +346,10 @@ function messageReducer(previous: OpenAI.ChatCompletionMessage, item: OpenAI.Cha
   }
   return reduce(previous, choice.delta) as OpenAI.ChatCompletionMessage;
 }
-async function handleMessageStream(
+/**
+ * Handle OpenAI-style message streams, which require manual accumulation of chunks
+ */
+async function handleOpenAIMessageStream(
   stream: ChatCompletionStream | AsyncGenerator<any, void, unknown>,
 ): Promise<OpenAI.ChatCompletion> {
   const streamStartTime = Date.now()
@@ -393,6 +396,30 @@ async function handleMessageStream(
       },
     ],
     usage,
+  }
+}
+
+/**
+ * Handle Anthropic-style message streams, using SDK's finalMessage() method
+ */
+async function handleAnthropicMessageStream(
+  stream: BetaMessageStream,
+): Promise<StreamResponse> {
+  const streamStartTime = Date.now()
+  let ttftMs: number | undefined
+
+  // Only track the timing, don't try to accumulate message
+  for await (const part of stream) {
+    if (part.type === 'message_start') {
+      ttftMs = Date.now() - streamStartTime
+    }
+  }
+
+  // Let the Anthropic SDK handle building the complete response
+  const finalResponse = await stream.finalMessage()
+  return {
+    ...finalResponse,
+    ttftMs,
   }
 }
 
@@ -874,8 +901,8 @@ async function queryAnthropicDirectly(
         console.error('Failed to log stream start:', logError);
       }
       
-      // Process stream and handle result
-      const result = await handleMessageStream(s);
+      // Process stream using Anthropic-specific handler
+      const result = await handleAnthropicMessageStream(s);
       
       // Log successful response
       try {
@@ -1243,7 +1270,7 @@ async function queryOpenAI(
           }
         })();
         
-        finalResponse = await handleMessageStream(wrappedStream);
+        finalResponse = await handleOpenAIMessageStream(wrappedStream);
       } else {
         finalResponse = s;
       }
@@ -1520,7 +1547,7 @@ async function queryHaikuWithPromptCaching({
       }
       
       // Process the stream
-      const result = await handleMessageStream(s);
+      const result = await handleAnthropicMessageStream(s);
       
       // Log successful response
       try {
@@ -1739,7 +1766,7 @@ async function queryHaikuWithoutPromptCaching({
       }
       
       // Process the stream
-      const result = await handleMessageStream(s);
+      const result = await handleAnthropicMessageStream(s);
       
       // Log successful response
       try {
