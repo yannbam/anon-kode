@@ -30,7 +30,7 @@ export const initializeStatsig = memoize(
     const user = await getUser()
     const options: StatsigOptions = {
       networkConfig: {
-        api: 'https://statsig.anthropic.com/v1/',
+        api: '',          // URL for statsig API
       },
       environment: {
         tier:
@@ -59,7 +59,7 @@ export function logEvent(
   eventName: string,
   metadata: { [key: string]: string | undefined },
 ): void {
-  // console.log('logEvent', eventName, metadata)
+  console.log('logEvent', eventName, metadata)
   if (env.isCI || process.env.NODE_ENV === 'test') {
     return
   }
