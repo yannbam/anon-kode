@@ -806,36 +806,119 @@ async function queryAnthropicDirectly(
     response = await withRetry(async attempt => {
       attemptNumber = attempt;
       start = Date.now();
+      
+      // Prepare request parameters
+      const requestParams = {
+        model: options.model,
+        max_tokens: Math.max(
+          maxThinkingTokens + 1,
+          8192, // Default for most Claude models
+        ),
+        messages: addCacheBreakpoints(messages),
+        temperature: MAIN_QUERY_TEMPERATURE,
+        system,
+        tools: toolSchemas.length > 0 ? toolSchemas : undefined,
+        ...(useBetas ? { betas } : {}),
+        metadata: getMetadata(),
+        ...(maxThinkingTokens > 0
+          ? {
+              thinking: {
+                budget_tokens: maxThinkingTokens,
+                type: 'enabled',
+              },
+            }
+          : {}),
+      };
+      
+      // Generate a request ID for logging
+      const requestId = randomUUID();
+      
+      // Log API request
+      try {
+        rawLogger.logApiRequest(
+          'anthropic', 
+          requestId, 
+          `https://api.anthropic.com/v1/messages`,
+          'POST',
+          { 
+            'Content-Type': 'application/json',
+            'x-api-key': '***redacted***', // Don't log actual API key
+            'anthropic-version': '2023-06-01',
+            'User-Agent': USER_AGENT,
+          },
+          // Clone request to avoid modifying the original
+          JSON.parse(JSON.stringify({
+            ...requestParams,
+            _debug: { 
+              provider: 'anthropic',
+              modelType: options.model
+            }
+          }))
+        );
+      } catch (logError) {
+        console.error('Failed to log API request:', logError);
+      }
+      
+      const requestStartTime = Date.now();
+      
       // Use Anthropic's streaming API
-      const s = anthropic.beta.messages.stream(
-        {
-          model: options.model,
-          max_tokens: Math.max(
-            maxThinkingTokens + 1,
-            8192, // Default for most Claude models
-          ),
-          messages: addCacheBreakpoints(messages),
-          temperature: MAIN_QUERY_TEMPERATURE,
-          system,
-          tools: toolSchemas.length > 0 ? toolSchemas : undefined,
-          ...(useBetas ? { betas } : {}),
-          metadata: getMetadata(),
-          ...(maxThinkingTokens > 0
-            ? {
-                thinking: {
-                  budget_tokens: maxThinkingTokens,
-                  type: 'enabled',
-                },
-              }
-            : {}),
-        },
-        { signal },
-      );
+      const s = anthropic.beta.messages.stream(requestParams, { signal });
       stream = s;
-      return handleMessageStream(s);
+      
+      // Store request ID with stream for later reference
+      (s as any).requestId = requestId;
+      
+      // Log streaming start
+      try {
+        rawLogger.logApiStreamStart('anthropic', requestId);
+      } catch (logError) {
+        console.error('Failed to log stream start:', logError);
+      }
+      
+      // Process stream and handle result
+      const result = await handleMessageStream(s);
+      
+      // Log successful response
+      try {
+        const durationMs = Date.now() - requestStartTime;
+        rawLogger.logApiResponse(
+          'anthropic',
+          requestId,
+          200, // Assuming success status code
+          {}, // Headers not directly available
+          result, // The full response object
+          durationMs
+        );
+      } catch (logError) {
+        console.error('Failed to log API response:', logError);
+      }
+      
+      return result;
     });
   } catch (error) {
     logError(error);
+    
+    // Log the error to raw logger
+    try {
+      const requestId = (stream as any)?.requestId ?? randomUUID();
+      const durationMs = Date.now() - start;
+      rawLogger.logApiError(
+        'anthropic', 
+        requestId, 
+        {
+          error: error instanceof Error ? error.message : String(error),
+          status: error instanceof APIError ? error.status : undefined,
+          provider: 'anthropic',
+          model: options.model,
+          messageCount: messages.length,
+          attempt: attemptNumber,
+        }, 
+        durationMs
+      );
+    } catch (logError) {
+      console.error('Failed to log API error:', logError);
+    }
+    
     logEvent('tengu_api_error', {
       model: options.model,
       error: error instanceof Error ? error.message : String(error),
@@ -846,8 +929,18 @@ async function queryAnthropicDirectly(
       durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
       attempt: String(attemptNumber),
       provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
-      requestId: (stream as any)?.request_id ?? undefined,
+      requestId: (stream as any)?.requestId ?? undefined,
     });
+    
+    // Update session state with error details
+    setSessionState('lastApiError', {
+      timestamp: Date.now(),
+      provider: 'anthropic',
+      baseURL: 'https://api.anthropic.com/v1',
+      message: error instanceof Error ? error.message : String(error),
+      details: error
+    });
+    
     return getAssistantMessageFromError(error, 'large');
   }
   
@@ -1360,23 +1453,107 @@ async function queryHaikuWithPromptCaching({
     response = await withRetry(async attempt => {
       attemptNumber = attempt;
       start = Date.now();
-      const s = anthropic.beta.messages.stream(
-        {
-          model: smallModel,
-          max_tokens: 512,
-          messages,
-          system,
-          temperature: 0,
-          metadata: getMetadata(),
-          stream: true,
-        },
-        { signal },
-      );
+      
+      // Prepare request parameters
+      const requestParams = {
+        model: smallModel,
+        max_tokens: 512,
+        messages,
+        system,
+        temperature: 0,
+        metadata: getMetadata(),
+        stream: true,
+      };
+      
+      // Generate a request ID for logging
+      const requestId = randomUUID();
+      
+      // Log API request
+      try {
+        rawLogger.logApiRequest(
+          'anthropic', 
+          requestId, 
+          `https://api.anthropic.com/v1/messages`,
+          'POST',
+          { 
+            'Content-Type': 'application/json',
+            'x-api-key': '***redacted***', // Don't log actual API key
+            'anthropic-version': '2023-06-01',
+            'User-Agent': USER_AGENT,
+          },
+          // Clone request to avoid modifying the original
+          JSON.parse(JSON.stringify({
+            ...requestParams,
+            _debug: { 
+              provider: 'anthropic',
+              modelType: 'small'
+            }
+          }))
+        );
+      } catch (logError) {
+        console.error('Failed to log API request:', logError);
+      }
+      
+      const requestStartTime = Date.now();
+      
+      // Use Anthropic's streaming API
+      const s = anthropic.beta.messages.stream(requestParams, { signal });
       stream = s;
-      return await handleMessageStream(s);
+      
+      // Store request ID with stream for later reference
+      (s as any).requestId = requestId;
+      
+      // Log streaming start
+      try {
+        rawLogger.logApiStreamStart('anthropic', requestId);
+      } catch (logError) {
+        console.error('Failed to log stream start:', logError);
+      }
+      
+      // Process the stream
+      const result = await handleMessageStream(s);
+      
+      // Log successful response
+      try {
+        const durationMs = Date.now() - requestStartTime;
+        rawLogger.logApiResponse(
+          'anthropic',
+          requestId,
+          200, // Assuming success status code
+          {}, // Headers not directly available
+          result, // The full response object
+          durationMs
+        );
+      } catch (logError) {
+        console.error('Failed to log API response:', logError);
+      }
+      
+      return result;
     });
   } catch (error) {
     logError(error);
+    
+    // Log the error to raw logger
+    try {
+      const requestId = (stream as any)?.requestId ?? randomUUID();
+      const durationMs = Date.now() - start;
+      rawLogger.logApiError(
+        'anthropic', 
+        requestId, 
+        {
+          error: error instanceof Error ? error.message : String(error),
+          status: error instanceof APIError ? error.status : undefined,
+          provider: 'anthropic',
+          model: smallModel,
+          messageCount: assistantPrompt ? 2 : 1,
+          attempt: attemptNumber,
+        }, 
+        durationMs
+      );
+    } catch (logError) {
+      console.error('Failed to log API error:', logError);
+    }
+    
     logEvent('tengu_api_error', {
       error: error instanceof Error ? error.message : String(error),
       status: error instanceof APIError ? String(error.status) : undefined,
@@ -1386,8 +1563,18 @@ async function queryHaikuWithPromptCaching({
       durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
       attempt: String(attemptNumber),
       provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
-      requestId: (stream as any)?.request_id ?? undefined,
+      requestId: (stream as any)?.requestId ?? undefined,
     });
+    
+    // Update session state with error details
+    setSessionState('lastApiError', {
+      timestamp: Date.now(),
+      provider: 'anthropic',
+      baseURL: 'https://api.anthropic.com/v1',
+      message: error instanceof Error ? error.message : String(error),
+      details: error
+    });
+    
     return getAssistantMessageFromError(error, 'small');
   }
 
@@ -1477,26 +1664,110 @@ async function queryHaikuWithoutPromptCaching({
     response = await withRetry(async attempt => {
       attemptNumber = attempt;
       start = Date.now();
-      const s = anthropic.beta.messages.stream(
-        {
-          model: smallModel,
-          max_tokens: 512,
-          messages,
-          system: splitSysPromptPrefix(systemPrompt).map(text => ({
-            type: 'text',
-            text,
-          })),
-          temperature: 0,
-          metadata: getMetadata(),
-          stream: true,
-        },
-        { signal },
-      );
+      
+      // Prepare request parameters
+      const requestParams = {
+        model: smallModel,
+        max_tokens: 512,
+        messages,
+        system: splitSysPromptPrefix(systemPrompt).map(text => ({
+          type: 'text',
+          text,
+        })),
+        temperature: 0,
+        metadata: getMetadata(),
+        stream: true,
+      };
+      
+      // Generate a request ID for logging
+      const requestId = randomUUID();
+      
+      // Log API request
+      try {
+        rawLogger.logApiRequest(
+          'anthropic', 
+          requestId, 
+          `https://api.anthropic.com/v1/messages`,
+          'POST',
+          { 
+            'Content-Type': 'application/json',
+            'x-api-key': '***redacted***', // Don't log actual API key
+            'anthropic-version': '2023-06-01',
+            'User-Agent': USER_AGENT,
+          },
+          // Clone request to avoid modifying the original
+          JSON.parse(JSON.stringify({
+            ...requestParams,
+            _debug: { 
+              provider: 'anthropic',
+              modelType: 'small'
+            }
+          }))
+        );
+      } catch (logError) {
+        console.error('Failed to log API request:', logError);
+      }
+      
+      const requestStartTime = Date.now();
+      
+      // Use Anthropic's streaming API
+      const s = anthropic.beta.messages.stream(requestParams, { signal });
       stream = s;
-      return await handleMessageStream(s);
+      
+      // Store request ID with stream for later reference
+      (s as any).requestId = requestId;
+      
+      // Log streaming start
+      try {
+        rawLogger.logApiStreamStart('anthropic', requestId);
+      } catch (logError) {
+        console.error('Failed to log stream start:', logError);
+      }
+      
+      // Process the stream
+      const result = await handleMessageStream(s);
+      
+      // Log successful response
+      try {
+        const durationMs = Date.now() - requestStartTime;
+        rawLogger.logApiResponse(
+          'anthropic',
+          requestId,
+          200, // Assuming success status code
+          {}, // Headers not directly available
+          result, // The full response object
+          durationMs
+        );
+      } catch (logError) {
+        console.error('Failed to log API response:', logError);
+      }
+      
+      return result;
     });
   } catch (error) {
     logError(error);
+    
+    // Log the error to raw logger
+    try {
+      const requestId = (stream as any)?.requestId ?? randomUUID();
+      const durationMs = Date.now() - start;
+      rawLogger.logApiError(
+        'anthropic', 
+        requestId, 
+        {
+          error: error instanceof Error ? error.message : String(error),
+          status: error instanceof APIError ? error.status : undefined,
+          provider: 'anthropic',
+          model: smallModel,
+          messageCount: assistantPrompt ? 2 : 1,
+          attempt: attemptNumber,
+        }, 
+        durationMs
+      );
+    } catch (logError) {
+      console.error('Failed to log API error:', logError);
+    }
+    
     logEvent('tengu_api_error', {
       error: error instanceof Error ? error.message : String(error),
       status: error instanceof APIError ? String(error.status) : undefined,
@@ -1506,8 +1777,18 @@ async function queryHaikuWithoutPromptCaching({
       durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
       attempt: String(attemptNumber),
       provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
-      requestId: (stream as any)?.request_id ?? undefined,
+      requestId: (stream as any)?.requestId ?? undefined,
     });
+    
+    // Update session state with error details
+    setSessionState('lastApiError', {
+      timestamp: Date.now(),
+      provider: 'anthropic',
+      baseURL: 'https://api.anthropic.com/v1',
+      message: error instanceof Error ? error.message : String(error),
+      details: error
+    });
+    
     return getAssistantMessageFromError(error, 'small');
   }
   
