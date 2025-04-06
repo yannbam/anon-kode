@@ -567,6 +567,25 @@ export class RawLogger {
     }
   }
   
+  // Log when a stream connection is initiated
+  public logApiStreamStart(provider: string, requestId: string): void {
+    this.ensureInitialized();
+    if (!this.enabled) return;
+    
+    this.writeToLog({
+      timestamp: this.getCurrentTimestamp(),
+      type: 'api_stream_start',
+      provider,
+      request_id: requestId,
+      data: {
+        status: 'connected'
+      }
+    });
+    
+    // Initialize an empty buffer for this stream's chunks
+    this.streamChunkBuffers.set(requestId, []);
+  }
+  
   // Log all buffered stream chunks as one entry
   public logApiStreamComplete(provider: string, requestId: string): void {
     this.ensureInitialized();
@@ -630,6 +649,8 @@ export const rawLogger = {
     RawLogger.getInstance().logApiResponse(...args),
   logApiError: (...args: Parameters<RawLogger['logApiError']>) => 
     RawLogger.getInstance().logApiError(...args),
+  logApiStreamStart: (...args: Parameters<RawLogger['logApiStreamStart']>) => 
+    RawLogger.getInstance().logApiStreamStart(...args),
   logApiStreamChunk: (...args: Parameters<RawLogger['logApiStreamChunk']>) => 
     RawLogger.getInstance().logApiStreamChunk(...args),
   logApiStreamComplete: (...args: Parameters<RawLogger['logApiStreamComplete']>) => 
