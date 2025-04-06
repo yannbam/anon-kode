@@ -314,11 +314,11 @@ function messageReducer(previous: OpenAI.ChatCompletionMessage, item: OpenAI.Cha
         // Don't concatenate role values, as they should be set only once
         // This fixes a bug where "role":"assistant" appears in multiple chunks
         // and gets concatenated to "role":"assistantassistant"
-        // if (key === 'role') {
+        if (key === 'role') {
           // Role is already set, don't append
-        // } else {
+        } else {
           acc[key] += value;
-        // }
+        }
       } else if (typeof acc[key] === 'number' && typeof value === 'number') {
         acc[key] = value;
       } else if (Array.isArray(acc[key]) && Array.isArray(value)) {
@@ -371,9 +371,13 @@ async function handleMessageStream(
     if(!usage) {
       usage = chunk.usage
     }
-    message = messageReducer(message, chunk);
-    if (chunk?.choices?.[0]?.delta?.content) {
-      ttftMs = Date.now() - streamStartTime
+    
+    // Only process valid chunks
+    if (chunk) {
+      message = messageReducer(message, chunk);
+      if (chunk?.choices?.[0]?.delta?.content) {
+        ttftMs = Date.now() - streamStartTime
+      }
     }
   }
   return {
@@ -979,10 +983,15 @@ async function queryAnthropicDirectly(
 
   addToTotalCost(costUSD, durationMsIncludingRetries);
 
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+    
   return {
     message: {
       ...response,
-      content: normalizeContentFromAPI(response.content),
+      content: normalizedContent,
       usage: {
         ...response.usage,
         cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
@@ -1286,10 +1295,15 @@ async function queryOpenAI(
 
   addToTotalCost(costUSD, durationMsIncludingRetries)
 
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+    
   const assistantMessage: AssistantMessage = {
     message: {
       ...response,
-      content: normalizeContentFromAPI(response.content),
+      content: normalizedContent,
       usage: {
         input_tokens: inputTokens,
         output_tokens: outputTokens,
@@ -1589,11 +1603,16 @@ async function queryHaikuWithPromptCaching({
   const durationMsIncludingRetries = Date.now() - startIncludingRetries;
   addToTotalCost(costUSD, durationMsIncludingRetries);
 
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+    
   const assistantMessage: AssistantMessage = {
     durationMs,
     message: {
       ...response,
-      content: normalizeContentFromAPI(response.content),
+      content: normalizedContent,
     },
     costUSD,
     uuid: randomUUID(),
@@ -1811,11 +1830,16 @@ async function queryHaikuWithoutPromptCaching({
 
   addToTotalCost(costUSD, durationMs);
 
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+  
   const assistantMessage: AssistantMessage = {
     durationMs,
     message: {
       ...response,
-      content: normalizeContentFromAPI(response.content),
+      content: normalizedContent,
       usage: {
         ...response.usage,
         cache_read_input_tokens: 0,

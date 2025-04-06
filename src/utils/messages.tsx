@@ -917,15 +917,22 @@ export function normalizeMessagesForAPI(
 export function normalizeContentFromAPI(
   content: APIMessage['content'],
 ): APIMessage['content'] {
+  // Handle undefined, null, or non-array content
+  if (!content || !Array.isArray(content)) {
+    return [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+  }
+  
+  // Filter out empty text blocks
   const filteredContent = content.filter(
-    _ => _.type !== 'text' || _.text.trim().length > 0,
-  )
+    _ => _.type !== 'text' || (_.text && _.text.trim().length > 0),
+  );
 
+  // If nothing is left after filtering, return a no-content message
   if (filteredContent.length === 0) {
-    return [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }]
+    return [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
   }
 
-  return filteredContent
+  return filteredContent;
 }
 
 export function isEmptyMessageText(text: string): boolean {
