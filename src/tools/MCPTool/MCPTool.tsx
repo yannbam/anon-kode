@@ -70,14 +70,11 @@ export const MCPTool = {
               )
             }
             const lines = item.text.split('\n').length
-            return (
-              <OutputLine
-                key={i}
-                content={item.text}
-                lines={lines}
-                verbose={verbose}
-              />
-            )
+            return React.createElement(OutputLine, {
+              content: item.text,
+              lines: lines,
+              verbose: verbose
+            }, i)
           })}
         </Box>
       )

@@ -64,6 +64,7 @@ import {
   getClients,
   ensureConfigScope,
 } from '../services/mcpClient.js'
+import { McpServerConfig } from '../utils/config.js'
 import { handleMcprcServerApprovals } from '../services/mcpServerApproval'
 import { checkGate, initializeStatsig, logEvent } from '../services/statsig'
 import { getExampleCommands } from '../utils/exampleCommands'
@@ -271,6 +272,11 @@ async function setup(
   }
 }
 
+// Create a custom render options interface
+interface ExtendedRenderOptions extends RenderOptions {
+  onFlicker?: () => void;
+}
+
 async function main() {
   // Validate configs are valid and enable configuration system
   try {
@@ -284,7 +290,7 @@ async function main() {
   }
 
   let inputPrompt = ''
-  let renderContext: RenderOptions | undefined = {
+  let renderContext: ExtendedRenderOptions | undefined = {
     exitOnCtrlC: false,
     onFlicker() {
       logEvent('tengu_flicker', {})
@@ -316,7 +322,7 @@ async function parseArgs(
 ): Promise<Command> {
   const program = new Command()
 
-  const renderContextWithExitOnCtrlC = {
+  const renderContextWithExitOnCtrlC: ExtendedRenderOptions = {
     ...renderContext,
     exitOnCtrlC: true,
   }
@@ -499,7 +505,7 @@ ${commandList}`,
     .action(async ({ cwd, global }) => {
       await setup(cwd, false)
       console.log(
-        JSON.stringify(listConfigForCLI((global as true) ?? false), null, 2),
+        JSON.stringify(global ? listConfigForCLI(true) : listConfigForCLI(false), null, 2),
       )
       process.exit(0)
     })
@@ -946,7 +952,7 @@ ${commandList}`,
           function ClaudeDesktopImport() {
             const { useState } = reactModule;
             const [isFinished, setIsFinished] = useState(false);
-            const [importResults, setImportResults] = useState<{name: string, success: boolean}[]>([]);
+            const [importResults, setImportResults] = useState([]);
             const [isImporting, setIsImporting] = useState(false);
             const theme = getTheme();
 

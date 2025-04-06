@@ -32,6 +32,7 @@ import { UserBashInputMessage } from '../components/messages/UserBashInputMessag
 import { Spinner } from '../components/Spinner'
 import { BashTool } from '../tools/BashTool/BashTool'
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources/index.mjs'
+import { getSessionState } from './sessionState.js'
 
 export const INTERRUPT_MESSAGE = '[Request interrupted by user]'
 export const INTERRUPT_MESSAGE_FOR_TOOL_USE =
@@ -88,14 +89,63 @@ export function createAssistantMessage(content: string): AssistantMessage {
   ])
 }
 
+/**
+ * Format API error message from session state data
+ */
+export function formatApiErrorMessage(errorContent: string): string {
+  const lastError = getSessionState('lastApiError');
+  
+  if (!lastError) {
+    return errorContent;
+  }
+  
+  // Build a more descriptive error message that includes the API provider's error details
+  let formattedError = errorContent;
+  
+  // Add the provider details if available
+  if (lastError.provider && lastError.timestamp) {
+    const timestamp = new Date(lastError.timestamp).toISOString();
+    formattedError += `\n\nProvider: ${lastError.provider} at ${timestamp}`;
+  }
+  
+  // Add the specific error message from the provider
+  if (lastError.message && typeof lastError.message === 'string') {
+    formattedError += `\nDetails: ${lastError.message}`;
+  }
+  
+  // Add status code and request ID if available
+  if (lastError.status) {
+    formattedError += `\nStatus code: ${lastError.status}`;
+  }
+  
+  // Add relevant headers (focusing on rate limits and request IDs)
+  const relevantHeaders = {};
+  for (const [key, value] of Object.entries(lastError.headers || {})) {
+    if (key.toLowerCase().includes('rate') || 
+        key.toLowerCase().includes('limit') || 
+        key.toLowerCase().includes('request-id') || 
+        key.toLowerCase().includes('error')) {
+      relevantHeaders[key] = value;
+    }
+  }
+  
+  if (Object.keys(relevantHeaders).length > 0) {
+    formattedError += `\nHeaders: ${JSON.stringify(relevantHeaders, null, 2)}`;
+  }
+  
+  return formattedError;
+}
+
 export function createAssistantAPIErrorMessage(
   content: string,
 ): AssistantMessage {
+  const formattedContent = formatApiErrorMessage(content);
+  
   return baseCreateAssistantMessage(
     [
       {
         type: 'text' as const,
-        text: content === '' ? NO_CONTENT_MESSAGE : content,
+        text: formattedContent === '' ? NO_CONTENT_MESSAGE : formattedContent,
         citations: [],
       },
     ],
@@ -286,7 +336,7 @@ export async function processUserInput(
       newMessages[0]!.type === 'user' &&
       newMessages[1]!.type === 'assistant' &&
       typeof newMessages[1]!.message.content === 'string' &&
-      // @ts-expect-error: TODO: this is probably a bug
+      typeof newMessages[1]!.message.content === 'string' &&
       newMessages[1]!.message.content.startsWith('Unknown command:')
     ) {
       logEvent('tengu_input_slash_invalid', { input })
@@ -335,6 +385,27 @@ export async function processUserInput(
   return [userMessage]
 }
 
+// Utility function to ensure context has required properties for command calls
+function adaptContextForCommand(context: ToolUseContext & {
+  setForkConvoWithMessagesOnTheNextRender: (forkConvoWithMessages: Message[]) => void
+}) {
+  // Ensure all required properties exist
+  return {
+    options: {
+      commands: context.options.commands || [],
+      tools: context.options.tools,
+      slowAndCapableModel: context.options.slowAndCapableModel || '',
+      // Preserve other options
+      ...context.options,
+    },
+    abortController: context.abortController,
+    messageId: context.messageId,
+    readFileTimestamps: context.readFileTimestamps,
+    setToolJSX: context.setToolJSX,
+    setForkConvoWithMessagesOnTheNextRender: context.setForkConvoWithMessagesOnTheNextRender,
+  };
+}
+
 async function getMessagesForSlashCommand(
   commandName: string,
   args: string,
@@ -377,7 +448,7 @@ async function getMessagesForSlashCommand(
         <command-args>${args}</command-args>`)
 
         try {
-          const result = await command.call(args, context)
+          const result = await command.call(args, adaptContextForCommand(context))
 
           return [
             userMessage,
@@ -846,15 +917,22 @@ export function normalizeMessagesForAPI(
 export function normalizeContentFromAPI(
   content: APIMessage['content'],
 ): APIMessage['content'] {
+  // Handle undefined, null, or non-array content
+  if (!content || !Array.isArray(content)) {
+    return [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+  }
+  
+  // Filter out empty text blocks
   const filteredContent = content.filter(
-    _ => _.type !== 'text' || _.text.trim().length > 0,
-  )
+    _ => _.type !== 'text' || (_.text && _.text.trim().length > 0),
+  );
 
+  // If nothing is left after filtering, return a no-content message
   if (filteredContent.length === 0) {
-    return [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }]
+    return [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
   }
 
-  return filteredContent
+  return filteredContent;
 }
 
 export function isEmptyMessageText(text: string): boolean {

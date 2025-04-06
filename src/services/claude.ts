@@ -2,6 +2,25 @@ import '@anthropic-ai/sdk/shims/node'
 import Anthropic, { APIConnectionError, APIError } from '@anthropic-ai/sdk'
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk'
+import { sessionLogger, rawLogger } from '../utils/sessionLogger.js'
+
+// Extended interfaces to match Anthropic implementation
+interface ExtendedAnthropicBedrock extends AnthropicBedrock {
+  apiKey?: string;
+  authToken?: string;
+  models?: any;
+  apiKeyAuth?: any;
+  bearerAuth?: any;
+}
+
+interface ExtendedAnthropicVertex extends AnthropicVertex {
+  apiKey?: string;
+  authToken?: string;
+  completions?: any;
+  models?: any;
+  apiKeyAuth?: any;
+  bearerAuth?: any;
+}
 import type { BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import chalk from 'chalk'
 import { createHash, randomUUID } from 'crypto'
@@ -13,6 +32,7 @@ import { Tool } from '../Tool'
 import { getAnthropicApiKey, getOrCreateUserID, getGlobalConfig, getActiveApiKey, markApiKeyAsFailed } from '../utils/config'
 import { logError, SESSION_ID } from '../utils/log'
 import { USER_AGENT } from '../utils/http'
+import { setSessionState } from '../utils/sessionState'
 import {
   createAssistantAPIErrorMessage,
   normalizeContentFromAPI,
@@ -27,11 +47,17 @@ import type {
   MessageParam,
   TextBlockParam,
 } from '@anthropic-ai/sdk/resources/index.mjs'
-import { SMALL_FAST_MODEL, USE_BEDROCK, USE_VERTEX } from '../utils/model'
+import { SMALL_FAST_MODEL, getSmallFastModel, USE_BEDROCK, USE_VERTEX } from '../utils/model'
 import { getCLISyspromptPrefix } from '../constants/prompts'
 import { getVertexRegionForModel } from '../utils/model'
 import OpenAI from 'openai'
 import type { ChatCompletionStream } from 'openai/lib/ChatCompletionStream'
+
+// Extend ChatCompletionMessage with additional properties from different providers
+interface ExtendedChatCompletionMessage extends OpenAI.ChatCompletionMessage {
+  reasoning?: string;
+  reasoning_content?: string;
+}
 import { ContentBlock } from '@anthropic-ai/sdk/resources/messages/messages'
 import { nanoid } from 'nanoid'
 import { getCompletion } from './openai'
@@ -39,7 +65,15 @@ import { getReasoningEffort } from '../utils/thinking'
 
 
 interface StreamResponse extends APIMessage {
-  ttftMs?: number
+  ttftMs?: number;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+  content?: Array<any>;
+  stop_reason?: string | null;
 }
 
 export const API_ERROR_MESSAGE_PREFIX = 'API Error'
@@ -285,7 +319,14 @@ function messageReducer(previous: OpenAI.ChatCompletionMessage, item: OpenAI.Cha
           }
         }
       } else if (typeof acc[key] === 'string' && typeof value === 'string') {
-        acc[key] += value;
+        // Don't concatenate role values, as they should be set only once
+        // This fixes a bug where "role":"assistant" appears in multiple chunks
+        // and gets concatenated to "role":"assistantassistant"
+        if (key === 'role') {
+          // Role is already set, don't append
+        } else {
+          acc[key] += value;
+        }
       } else if (typeof acc[key] === 'number' && typeof value === 'number') {
         acc[key] = value;
       } else if (Array.isArray(acc[key]) && Array.isArray(value)) {
@@ -313,8 +354,11 @@ function messageReducer(previous: OpenAI.ChatCompletionMessage, item: OpenAI.Cha
   }
   return reduce(previous, choice.delta) as OpenAI.ChatCompletionMessage;
 }
-async function handleMessageStream(
-  stream: ChatCompletionStream,
+/**
+ * Handle OpenAI-style message streams, which require manual accumulation of chunks
+ */
+async function handleOpenAIMessageStream(
+  stream: ChatCompletionStream | AsyncGenerator<any, void, unknown>,
 ): Promise<OpenAI.ChatCompletion> {
   const streamStartTime = Date.now()
   let ttftMs: number | undefined
@@ -338,9 +382,13 @@ async function handleMessageStream(
     if(!usage) {
       usage = chunk.usage
     }
-    message = messageReducer(message, chunk);
-    if (chunk?.choices?.[0]?.delta?.content) {
-      ttftMs = Date.now() - streamStartTime
+    
+    // Only process valid chunks
+    if (chunk) {
+      message = messageReducer(message, chunk);
+      if (chunk?.choices?.[0]?.delta?.content) {
+        ttftMs = Date.now() - streamStartTime
+      }
     }
   }
   return {
@@ -359,9 +407,33 @@ async function handleMessageStream(
   }
 }
 
+/**
+ * Handle Anthropic-style message streams, using SDK's finalMessage() method
+ */
+async function handleAnthropicMessageStream(
+  stream: BetaMessageStream,
+): Promise<StreamResponse> {
+  const streamStartTime = Date.now()
+  let ttftMs: number | undefined
+
+  // Only track the timing, don't try to accumulate message
+  for await (const part of stream) {
+    if (part.type === 'message_start') {
+      ttftMs = Date.now() - streamStartTime
+    }
+  }
+
+  // Let the Anthropic SDK handle building the complete response
+  const finalResponse = await stream.finalMessage()
+  return {
+    ...finalResponse,
+    ttftMs,
+  }
+}
+
 function convertOpenAIResponseToAnthropic(response: OpenAI.ChatCompletion) {
   let contentBlocks: ContentBlock[] = []
-  const message = response.choices?.[0]?.message
+  const message = response.choices?.[0]?.message as ExtendedChatCompletionMessage
   if(!message) {
     logEvent('weird_response', {
       response: JSON.stringify(response),
@@ -433,17 +505,25 @@ function convertOpenAIResponseToAnthropic(response: OpenAI.ChatCompletion) {
   return finalMessage
 }
 
-let anthropicClient: Anthropic | null = null
+let anthropicClient: Anthropic | ExtendedAnthropicBedrock | ExtendedAnthropicVertex | null = null
 
 /**
  * Get the Anthropic client, creating it if it doesn't exist
  */
-export function getAnthropicClient(model?: string): Anthropic {
+export function getAnthropicClient(model?: string): Anthropic | ExtendedAnthropicBedrock | ExtendedAnthropicVertex {
+  // If client exists and provider hasn't changed, reuse it
+  const config = getGlobalConfig();
+  
+  // Reset client if needed for provider change
+  if (anthropicClient && config.primaryProvider !== 'anthropic') {
+    anthropicClient = null;
+  }
+  
   if (anthropicClient) {
-    return anthropicClient
+    return anthropicClient;
   }
 
-  const region = getVertexRegionForModel(model)
+  const region = getVertexRegionForModel(model);
 
   const defaultHeaders: { [key: string]: string } = {
     'x-app': 'cli',
@@ -451,7 +531,7 @@ export function getAnthropicClient(model?: string): Anthropic {
   }
   if (process.env.ANTHROPIC_AUTH_TOKEN) {
     defaultHeaders['Authorization'] =
-      `Bearer ${process.env.ANTHROPIC_AUTH_TOKEN}`
+      `Bearer ${process.env.ANTHROPIC_AUTH_TOKEN}`;
   }
 
   const ARGS = {
@@ -459,36 +539,42 @@ export function getAnthropicClient(model?: string): Anthropic {
     maxRetries: 0, // Disabled auto-retry in favor of manual implementation
     timeout: parseInt(process.env.API_TIMEOUT_MS || String(60 * 1000), 10),
   }
+  
   if (USE_BEDROCK) {
-    const client = new AnthropicBedrock(ARGS)
-    anthropicClient = client
-    return client
+    const client = new AnthropicBedrock(ARGS) as ExtendedAnthropicBedrock;
+    anthropicClient = client;
+    return client;
   }
+  
   if (USE_VERTEX) {
     const vertexArgs = {
       ...ARGS,
       region: region || process.env.CLOUD_ML_REGION || 'us-east5',
-    }
-    const client = new AnthropicVertex(vertexArgs)
-    anthropicClient = client
-    return client
+    };
+    const client = new AnthropicVertex(vertexArgs) as ExtendedAnthropicVertex;
+    anthropicClient = client;
+    return client;
   }
 
-  const apiKey = getAnthropicApiKey()
-
-  if (process.env.USER_TYPE === 'ant' && !apiKey) {
+  // For direct Anthropic API access - use same pattern as other parts of codebase
+  const modelType = model?.includes('haiku') ? 'small' : 'large';
+  const apiKey = getActiveApiKey(config, modelType);
+  
+  if (!apiKey) {
     console.error(
       chalk.red(
-        '[ANT-ONLY] Please set the ANTHROPIC_API_KEY environment variable to use the CLI. To create a new key, go to https://console.anthropic.com/settings/keys.',
+        'No API key found for Anthropic. Please configure it in the settings.',
       ),
-    )
+    );
   }
+  
   anthropicClient = new Anthropic({
     apiKey,
     dangerouslyAllowBrowser: true,
     ...ARGS,
-  })
-  return anthropicClient
+  });
+  
+  return anthropicClient;
 }
 
 /**
@@ -663,34 +749,335 @@ async function querySonnetWithPromptCaching(
     prependCLISysprompt: boolean
   },
 ): Promise<AssistantMessage> {
-  return queryOpenAI('large', messages, systemPrompt, maxThinkingTokens, tools, signal, options)
+  const config = getGlobalConfig();
+  
+  // Check if provider is Anthropic to use direct Anthropic implementation
+  if (config.primaryProvider === 'anthropic') {
+    return queryAnthropicDirectly(messages, systemPrompt, maxThinkingTokens, tools, signal, options);
+  }
+  
+  // For all other providers, use the OpenAI-based implementation
+  return queryOpenAI('large', messages, systemPrompt, maxThinkingTokens, tools, signal, options);
 }
 
-function getAssistantMessageFromError(error: unknown): AssistantMessage {
+/**
+ * Direct implementation of Anthropic API calls - based on original implementation
+ */
+async function queryAnthropicDirectly(
+  messages: (UserMessage | AssistantMessage)[],
+  systemPrompt: string[],
+  maxThinkingTokens: number,
+  tools: Tool[],
+  signal: AbortSignal,
+  options: {
+    dangerouslySkipPermissions: boolean
+    model: string
+    prependCLISysprompt: boolean
+  },
+): Promise<AssistantMessage> {
+  const anthropic = getAnthropicClient(options.model);
+
+  // Prepend system prompt block for easy API identification
+  if (options.prependCLISysprompt) {
+    // Log stats about first block for analyzing prefix matching config
+    const [firstSyspromptBlock] = splitSysPromptPrefix(systemPrompt);
+    logEvent('tengu_sysprompt_block', {
+      snippet: firstSyspromptBlock?.slice(0, 20),
+      length: String(firstSyspromptBlock?.length ?? 0),
+      hash: firstSyspromptBlock
+        ? createHash('sha256').update(firstSyspromptBlock).digest('hex')
+        : '',
+    });
+
+    systemPrompt = [getCLISyspromptPrefix(), ...systemPrompt];
+  }
+
+  const system: TextBlockParam[] = splitSysPromptPrefix(systemPrompt).map(
+    _ => ({
+      ...(PROMPT_CACHING_ENABLED
+        ? { cache_control: { type: 'ephemeral' } }
+        : {}),
+      text: _,
+      type: 'text',
+    }),
+  );
+
+  const toolSchemas = await Promise.all(
+    tools.map(async _ => ({
+      name: _.name,
+      description: await _.prompt({
+        dangerouslySkipPermissions: options.dangerouslySkipPermissions,
+      }),
+      // Use tool's JSON schema directly if provided, otherwise convert Zod schema
+      input_schema: ('inputJSONSchema' in _ && _.inputJSONSchema
+        ? _.inputJSONSchema
+        : zodToJsonSchema(_.inputSchema)) as any,
+    })),
+  );
+
+  // Remove beta feature flags as they're causing API errors
+  // const betas = ['tool_use:logging=false'];
+  // const useBetas = PROMPT_CACHING_ENABLED && betas.length > 0;
+  const useBetas = false;
+  
+  logEvent('tengu_api_query', {
+    model: options.model,
+    messagesLength: String(
+      JSON.stringify([...system, ...messages, ...toolSchemas]).length,
+    ),
+    temperature: String(MAIN_QUERY_TEMPERATURE),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    // Beta features removed due to API incompatibility
+  });
+
+  const startIncludingRetries = Date.now();
+  let start = Date.now();
+  let attemptNumber = 0;
+  let response;
+  let stream: any = undefined;
+  
+  try {
+    response = await withRetry(async attempt => {
+      attemptNumber = attempt;
+      start = Date.now();
+      
+      // Prepare request parameters
+      const requestParams = {
+        model: options.model,
+        max_tokens: Math.max(
+          maxThinkingTokens + 1,
+          8192, // Default for most Claude models
+        ),
+        messages: addCacheBreakpoints(messages),
+        temperature: MAIN_QUERY_TEMPERATURE,
+        system,
+        tools: toolSchemas.length > 0 ? toolSchemas : undefined,
+        // Beta features removed due to API incompatibility
+        metadata: getMetadata(),
+        ...(maxThinkingTokens > 0
+          ? {
+              thinking: {
+                budget_tokens: maxThinkingTokens,
+                type: 'enabled',
+              },
+            }
+          : {}),
+      };
+      
+      // Generate a request ID for logging
+      const requestId = randomUUID();
+      
+      // Log API request
+      try {
+        rawLogger.logApiRequest(
+          'anthropic', 
+          requestId, 
+          `https://api.anthropic.com/v1/messages`,
+          'POST',
+          { 
+            'Content-Type': 'application/json',
+            'x-api-key': '***redacted***', // Don't log actual API key
+            'anthropic-version': '2023-06-01',
+            'User-Agent': USER_AGENT,
+          },
+          // Clone request to avoid modifying the original
+          JSON.parse(JSON.stringify({
+            ...requestParams,
+            _debug: { 
+              provider: 'anthropic',
+              modelType: options.model
+            }
+          }))
+        );
+      } catch (logError) {
+        console.error('Failed to log API request:', logError);
+      }
+      
+      const requestStartTime = Date.now();
+      
+      // Use Anthropic's streaming API
+      const s = anthropic.beta.messages.stream(requestParams, { signal });
+      stream = s;
+      
+      // Store request ID with stream for later reference
+      (s as any).requestId = requestId;
+      
+      // Log streaming start
+      try {
+        rawLogger.logApiStreamStart('anthropic', requestId);
+      } catch (logError) {
+        console.error('Failed to log stream start:', logError);
+      }
+      
+      // Process stream using Anthropic-specific handler
+      const result = await handleAnthropicMessageStream(s);
+      
+      // Log successful response
+      try {
+        const durationMs = Date.now() - requestStartTime;
+        rawLogger.logApiResponse(
+          'anthropic',
+          requestId,
+          200, // Assuming success status code
+          {}, // Headers not directly available
+          result, // The full response object
+          durationMs
+        );
+      } catch (logError) {
+        console.error('Failed to log API response:', logError);
+      }
+      
+      return result;
+    });
+  } catch (error) {
+    logError(error);
+    
+    // Log the error to raw logger
+    try {
+      const requestId = (stream as any)?.requestId ?? randomUUID();
+      const durationMs = Date.now() - start;
+      rawLogger.logApiError(
+        'anthropic', 
+        requestId, 
+        {
+          error: error instanceof Error ? error.message : String(error),
+          status: error instanceof APIError ? error.status : undefined,
+          provider: 'anthropic',
+          model: options.model,
+          messageCount: messages.length,
+          attempt: attemptNumber,
+        }, 
+        durationMs
+      );
+    } catch (logError) {
+      console.error('Failed to log API error:', logError);
+    }
+    
+    logEvent('tengu_api_error', {
+      model: options.model,
+      error: error instanceof Error ? error.message : String(error),
+      status: error instanceof APIError ? String(error.status) : undefined,
+      messageCount: String(messages.length),
+      messageTokens: String(countTokens(messages)),
+      durationMs: String(Date.now() - start),
+      durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
+      attempt: String(attemptNumber),
+      provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+      requestId: (stream as any)?.requestId ?? undefined,
+    });
+    
+    // Update session state with error details
+    setSessionState('lastApiError', {
+      timestamp: Date.now(),
+      provider: 'anthropic',
+      baseURL: 'https://api.anthropic.com/v1',
+      message: error instanceof Error ? error.message : String(error),
+      details: error
+    });
+    
+    return getAssistantMessageFromError(error, 'large');
+  }
+  
+  const durationMs = Date.now() - start;
+  const durationMsIncludingRetries = Date.now() - startIncludingRetries;
+  
+  logEvent('tengu_api_success', {
+    model: options.model,
+    messageCount: String(messages.length),
+    messageTokens: String(countTokens(messages)),
+    inputTokens: String(response.usage.input_tokens),
+    outputTokens: String(response.usage.output_tokens),
+    cachedInputTokens: String(
+      (response.usage as any).cache_read_input_tokens ?? 0,
+    ),
+    uncachedInputTokens: String(
+      (response.usage as any).cache_creation_input_tokens ?? 0,
+    ),
+    durationMs: String(durationMs),
+    durationMsIncludingRetries: String(durationMsIncludingRetries),
+    attempt: String(attemptNumber),
+    ttftMs: String(response.ttftMs),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    requestId: (stream as any)?.request_id ?? undefined,
+    stop_reason: response.stop_reason ?? undefined,
+  });
+
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const cacheReadInputTokens =
+    (response.usage as any).cache_read_input_tokens ?? 0;
+  const cacheCreationInputTokens =
+    (response.usage as any).cache_creation_input_tokens ?? 0;
+  const costUSD =
+    (inputTokens / 1_000_000) * SONNET_COST_PER_MILLION_INPUT_TOKENS +
+    (outputTokens / 1_000_000) * SONNET_COST_PER_MILLION_OUTPUT_TOKENS +
+    (cacheReadInputTokens / 1_000_000) *
+      SONNET_COST_PER_MILLION_PROMPT_CACHE_READ_TOKENS +
+    (cacheCreationInputTokens / 1_000_000) *
+      SONNET_COST_PER_MILLION_PROMPT_CACHE_WRITE_TOKENS;
+
+  addToTotalCost(costUSD, durationMsIncludingRetries);
+
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+    
+  return {
+    message: {
+      ...response,
+      content: normalizedContent,
+      usage: {
+        ...response.usage,
+        cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+        cache_creation_input_tokens:
+          response.usage.cache_creation_input_tokens ?? 0,
+      },
+    },
+    costUSD,
+    durationMs,
+    type: 'assistant',
+    uuid: randomUUID(),
+  };
+}
+
+function getAssistantMessageFromError(error: unknown, modelType?: 'large' | 'small'): AssistantMessage {
+  const config = getGlobalConfig();
+  const baseURL = modelType === 'large' ? config.largeModelBaseURL : (modelType === 'small' ? config.smallModelBaseURL : 'unknown');
+  
+  // Store error details in session state for formatApiErrorMessage to use
+  setSessionState('lastApiError', {
+    timestamp: Date.now(),
+    provider: 'openai', // Protocol
+    baseURL: baseURL,   // Actual endpoint base
+    message: error instanceof Error ? error.message : String(error),
+    details: error
+  });
+
   if (error instanceof Error && error.message.includes('prompt is too long')) {
-    return createAssistantAPIErrorMessage(PROMPT_TOO_LONG_ERROR_MESSAGE)
+    return createAssistantAPIErrorMessage(`${PROMPT_TOO_LONG_ERROR_MESSAGE} (${baseURL})`)
   }
   if (
     error instanceof Error &&
     error.message.includes('Your credit balance is too low')
   ) {
-    return createAssistantAPIErrorMessage(CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE)
+    return createAssistantAPIErrorMessage(`${CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE} (${baseURL})`)
   }
   if (
     error instanceof Error &&
     error.message.toLowerCase().includes('x-api-key')
   ) {
-    return createAssistantAPIErrorMessage(INVALID_API_KEY_ERROR_MESSAGE)
+    return createAssistantAPIErrorMessage(`${INVALID_API_KEY_ERROR_MESSAGE} (${baseURL})`)
   }
   if (error instanceof Error) {
     if(process.env.NODE_ENV === 'development') {
       console.log(error)
     }
     return createAssistantAPIErrorMessage(
-      `${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
+      `${API_ERROR_MESSAGE_PREFIX} from ${baseURL}: ${error.message}`,
     )
   }
-  return createAssistantAPIErrorMessage(API_ERROR_MESSAGE_PREFIX)
+  return createAssistantAPIErrorMessage(`${API_ERROR_MESSAGE_PREFIX} from ${baseURL}`)
 }
 
 function addCacheBreakpoints(
@@ -717,8 +1104,8 @@ async function queryOpenAI(
   },
 ): Promise<AssistantMessage> {
   // Import here to avoid circular dependency - proper ES Module dynamic import
-  const sessionLoggerModule = await import('../utils/sessionLogger.js');
-  const { sessionLogger, rawLogger } = sessionLoggerModule;
+  // Using static imports from the top of the file
+  // No dynamic imports needed, circular dependency is resolved properly
   
   //const anthropic = await getAnthropicClient(options.model)
   const config = getGlobalConfig()
@@ -808,14 +1195,25 @@ async function queryOpenAI(
       
       // Log API request
       try {
+        const baseURL = modelType === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL || 'https://api.openai.com';
         rawLogger.logApiRequest(
           'openai', 
           requestId, 
-          `${config.largeModelBaseURL || config.smallModelBaseURL || 'https://api.openai.com'}/chat/completions`,
+          `${baseURL}/chat/completions`,
           'POST',
-          { 'Content-Type': 'application/json' },
+          { 
+            'Content-Type': 'application/json',
+            'X-Base-URL': baseURL // Add baseURL for clarity
+          },
           // Clone the request to avoid modifying the original
-          JSON.parse(JSON.stringify(opts))
+          JSON.parse(JSON.stringify({
+            ...opts,
+            _debug: { 
+              baseURL,
+              provider: config.primaryProvider,
+              modelType
+            }
+          }))
         );
       } catch (logError) {
         console.error('Failed to log API request:', logError);
@@ -829,7 +1227,14 @@ async function queryOpenAI(
         // Log API error
         try {
           const durationMs = Date.now() - requestStartTime;
-          rawLogger.logApiError('openai', requestId, error, durationMs);
+          const baseURL = modelType === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL || 'https://api.openai.com';
+          rawLogger.logApiError('openai', requestId, {
+            ...error,
+            baseURL: baseURL,
+            endpoint: `${baseURL}/chat/completions`,
+            provider: config.primaryProvider,
+            modelType: modelType
+          }, durationMs);
         } catch (logError) {
           console.error('Failed to log API error:', logError);
         }
@@ -873,7 +1278,7 @@ async function queryOpenAI(
           }
         })();
         
-        finalResponse = await handleMessageStream(wrappedStream);
+        finalResponse = await handleOpenAIMessageStream(wrappedStream);
       } else {
         finalResponse = s;
       }
@@ -906,7 +1311,7 @@ async function queryOpenAI(
     } catch (logError) {
       console.error('Failed to log final API error:', logError);
     }
-    return getAssistantMessageFromError(error)
+    return getAssistantMessageFromError(error, modelType)
   }
   const durationMs = Date.now() - start
   const durationMsIncludingRetries = Date.now() - startIncludingRetries
@@ -925,10 +1330,15 @@ async function queryOpenAI(
 
   addToTotalCost(costUSD, durationMsIncludingRetries)
 
-  const assistantMessage = {
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+    
+  const assistantMessage: AssistantMessage = {
     message: {
       ...response,
-      content: normalizeContentFromAPI(response.content),
+      content: normalizedContent,
       usage: {
         input_tokens: inputTokens,
         output_tokens: outputTokens,
@@ -967,10 +1377,6 @@ export async function queryHaiku({
   enablePromptCaching?: boolean
   signal?: AbortSignal
 }): Promise<AssistantMessage> {
-  // Import here to avoid circular dependency - proper ES Module dynamic import
-  const sessionLoggerModule = await import('../utils/sessionLogger.js');
-  const { rawLogger } = sessionLoggerModule;
-  
   return await withVCR(
     [
       {
@@ -988,6 +1394,26 @@ export async function queryHaiku({
       },
     ],
     () => {
+      const config = getGlobalConfig();
+      
+      // Check if provider is Anthropic and route to direct Anthropic implementation
+      if (config.primaryProvider === 'anthropic') {
+        return enablePromptCaching
+          ? queryHaikuWithPromptCaching({
+              systemPrompt,
+              userPrompt,
+              assistantPrompt,
+              signal,
+            })
+          : queryHaikuWithoutPromptCaching({
+              systemPrompt,
+              userPrompt,
+              assistantPrompt,
+              signal,
+            });
+      }
+      
+      // For non-Anthropic providers, use the OpenAI implementation
       const messages = [
         {
           message: { role: 'user', content: userPrompt },
@@ -995,7 +1421,7 @@ export async function queryHaiku({
           uuid: randomUUID(),
         }
       ] as (UserMessage | AssistantMessage)[]
-      return queryOpenAI('small', messages, systemPrompt, 0, [], signal)      
+      return queryOpenAI('small', messages, systemPrompt, 0, [], signal);
     },
   )
 }
@@ -1015,4 +1441,450 @@ function getMaxTokensForModelType(modelType: 'large' | 'small'): number {
   }
 
   return maxTokens ?? 8000
+}
+
+/**
+ * Direct implementation for calling Anthropic API with small models
+ */
+async function queryHaikuWithPromptCaching({
+  systemPrompt,
+  userPrompt,
+  assistantPrompt,
+  signal,
+}: {
+  systemPrompt: string[]
+  userPrompt: string
+  assistantPrompt?: string
+  signal?: AbortSignal
+}): Promise<AssistantMessage> {
+  // Use the provider-aware model selection
+  const smallModel = getSmallFastModel();
+  const anthropic = getAnthropicClient(smallModel);
+  
+  const messages = [
+    {
+      role: 'user' as const,
+      content: userPrompt,
+    },
+    ...(assistantPrompt
+      ? [{ role: 'assistant' as const, content: assistantPrompt }]
+      : []),
+  ];
+
+  const system: TextBlockParam[] = splitSysPromptPrefix(systemPrompt).map(
+    _ => ({
+      ...(PROMPT_CACHING_ENABLED
+        ? { cache_control: { type: 'ephemeral' } }
+        : {}),
+      text: _,
+      type: 'text',
+    }),
+  );
+
+  logEvent('tengu_api_query', {
+    model: smallModel,
+    messagesLength: String(JSON.stringify([...system, ...messages]).length),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+  });
+  
+  let attemptNumber = 0;
+  let start = Date.now();
+  const startIncludingRetries = Date.now();
+  let response: StreamResponse;
+  let stream: any = undefined;
+  
+  try {
+    response = await withRetry(async attempt => {
+      attemptNumber = attempt;
+      start = Date.now();
+      
+      // Prepare request parameters
+      const requestParams = {
+        model: smallModel,
+        max_tokens: 512,
+        messages,
+        system,
+        temperature: 0,
+        metadata: getMetadata(),
+        stream: true,
+      };
+      
+      // Generate a request ID for logging
+      const requestId = randomUUID();
+      
+      // Log API request
+      try {
+        rawLogger.logApiRequest(
+          'anthropic', 
+          requestId, 
+          `https://api.anthropic.com/v1/messages`,
+          'POST',
+          { 
+            'Content-Type': 'application/json',
+            'x-api-key': '***redacted***', // Don't log actual API key
+            'anthropic-version': '2023-06-01',
+            'User-Agent': USER_AGENT,
+          },
+          // Clone request to avoid modifying the original
+          JSON.parse(JSON.stringify({
+            ...requestParams,
+            _debug: { 
+              provider: 'anthropic',
+              modelType: 'small'
+            }
+          }))
+        );
+      } catch (logError) {
+        console.error('Failed to log API request:', logError);
+      }
+      
+      const requestStartTime = Date.now();
+      
+      // Use Anthropic's streaming API
+      const s = anthropic.beta.messages.stream(requestParams, { signal });
+      stream = s;
+      
+      // Store request ID with stream for later reference
+      (s as any).requestId = requestId;
+      
+      // Log streaming start
+      try {
+        rawLogger.logApiStreamStart('anthropic', requestId);
+      } catch (logError) {
+        console.error('Failed to log stream start:', logError);
+      }
+      
+      // Process the stream
+      const result = await handleAnthropicMessageStream(s);
+      
+      // Log successful response
+      try {
+        const durationMs = Date.now() - requestStartTime;
+        rawLogger.logApiResponse(
+          'anthropic',
+          requestId,
+          200, // Assuming success status code
+          {}, // Headers not directly available
+          result, // The full response object
+          durationMs
+        );
+      } catch (logError) {
+        console.error('Failed to log API response:', logError);
+      }
+      
+      return result;
+    });
+  } catch (error) {
+    logError(error);
+    
+    // Log the error to raw logger
+    try {
+      const requestId = (stream as any)?.requestId ?? randomUUID();
+      const durationMs = Date.now() - start;
+      rawLogger.logApiError(
+        'anthropic', 
+        requestId, 
+        {
+          error: error instanceof Error ? error.message : String(error),
+          status: error instanceof APIError ? error.status : undefined,
+          provider: 'anthropic',
+          model: smallModel,
+          messageCount: assistantPrompt ? 2 : 1,
+          attempt: attemptNumber,
+        }, 
+        durationMs
+      );
+    } catch (logError) {
+      console.error('Failed to log API error:', logError);
+    }
+    
+    logEvent('tengu_api_error', {
+      error: error instanceof Error ? error.message : String(error),
+      status: error instanceof APIError ? String(error.status) : undefined,
+      model: smallModel,
+      messageCount: String(assistantPrompt ? 2 : 1),
+      durationMs: String(Date.now() - start),
+      durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
+      attempt: String(attemptNumber),
+      provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+      requestId: (stream as any)?.requestId ?? undefined,
+    });
+    
+    // Update session state with error details
+    setSessionState('lastApiError', {
+      timestamp: Date.now(),
+      provider: 'anthropic',
+      baseURL: 'https://api.anthropic.com/v1',
+      message: error instanceof Error ? error.message : String(error),
+      details: error
+    });
+    
+    return getAssistantMessageFromError(error, 'small');
+  }
+
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const cacheReadInputTokens = response.usage.cache_read_input_tokens ?? 0;
+  const cacheCreationInputTokens = response.usage.cache_creation_input_tokens ?? 0;
+  const costUSD =
+    (inputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_INPUT_TOKENS +
+    (outputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_OUTPUT_TOKENS +
+    (cacheReadInputTokens / 1_000_000) *
+      HAIKU_COST_PER_MILLION_PROMPT_CACHE_READ_TOKENS +
+    (cacheCreationInputTokens / 1_000_000) *
+      HAIKU_COST_PER_MILLION_PROMPT_CACHE_WRITE_TOKENS;
+
+  const durationMs = Date.now() - start;
+  const durationMsIncludingRetries = Date.now() - startIncludingRetries;
+  addToTotalCost(costUSD, durationMsIncludingRetries);
+
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+    
+  const assistantMessage: AssistantMessage = {
+    durationMs,
+    message: {
+      ...response,
+      content: normalizedContent,
+    },
+    costUSD,
+    uuid: randomUUID(),
+    type: 'assistant',
+  };
+
+  logEvent('tengu_api_success', {
+    model: smallModel,
+    messageCount: String(assistantPrompt ? 2 : 1),
+    inputTokens: String(inputTokens),
+    outputTokens: String(response.usage.output_tokens),
+    cachedInputTokens: String(response.usage.cache_read_input_tokens ?? 0),
+    uncachedInputTokens: String(response.usage.cache_creation_input_tokens ?? 0),
+    durationMs: String(durationMs),
+    durationMsIncludingRetries: String(durationMsIncludingRetries),
+    ttftMs: String(response.ttftMs),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    requestId: (stream as any)?.request_id ?? undefined,
+    stop_reason: response.stop_reason ?? undefined,
+  });
+
+  return assistantMessage;
+}
+
+/**
+ * Direct implementation for calling Anthropic API with small models without prompt caching
+ */
+async function queryHaikuWithoutPromptCaching({
+  systemPrompt,
+  userPrompt,
+  assistantPrompt,
+  signal,
+}: {
+  systemPrompt: string[]
+  userPrompt: string
+  assistantPrompt?: string
+  signal?: AbortSignal
+}): Promise<AssistantMessage> {
+  // Use the provider-aware model selection
+  const smallModel = getSmallFastModel();
+  const anthropic = getAnthropicClient(smallModel);
+  
+  const messages = [
+    { role: 'user' as const, content: userPrompt },
+    ...(assistantPrompt
+      ? [{ role: 'assistant' as const, content: assistantPrompt }]
+      : []),
+  ];
+  
+  logEvent('tengu_api_query', {
+    model: smallModel,
+    messagesLength: String(JSON.stringify([{ systemPrompt }, ...messages]).length),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+  });
+
+  let attemptNumber = 0;
+  let start = Date.now();
+  const startIncludingRetries = Date.now();
+  let response: StreamResponse;
+  let stream: any = undefined;
+  
+  try {
+    response = await withRetry(async attempt => {
+      attemptNumber = attempt;
+      start = Date.now();
+      
+      // Prepare request parameters
+      const requestParams = {
+        model: smallModel,
+        max_tokens: 512,
+        messages,
+        system: splitSysPromptPrefix(systemPrompt).map(text => ({
+          type: 'text',
+          text,
+        })),
+        temperature: 0,
+        metadata: getMetadata(),
+        stream: true,
+      };
+      
+      // Generate a request ID for logging
+      const requestId = randomUUID();
+      
+      // Log API request
+      try {
+        rawLogger.logApiRequest(
+          'anthropic', 
+          requestId, 
+          `https://api.anthropic.com/v1/messages`,
+          'POST',
+          { 
+            'Content-Type': 'application/json',
+            'x-api-key': '***redacted***', // Don't log actual API key
+            'anthropic-version': '2023-06-01',
+            'User-Agent': USER_AGENT,
+          },
+          // Clone request to avoid modifying the original
+          JSON.parse(JSON.stringify({
+            ...requestParams,
+            _debug: { 
+              provider: 'anthropic',
+              modelType: 'small'
+            }
+          }))
+        );
+      } catch (logError) {
+        console.error('Failed to log API request:', logError);
+      }
+      
+      const requestStartTime = Date.now();
+      
+      // Use Anthropic's streaming API
+      const s = anthropic.beta.messages.stream(requestParams, { signal });
+      stream = s;
+      
+      // Store request ID with stream for later reference
+      (s as any).requestId = requestId;
+      
+      // Log streaming start
+      try {
+        rawLogger.logApiStreamStart('anthropic', requestId);
+      } catch (logError) {
+        console.error('Failed to log stream start:', logError);
+      }
+      
+      // Process the stream
+      const result = await handleAnthropicMessageStream(s);
+      
+      // Log successful response
+      try {
+        const durationMs = Date.now() - requestStartTime;
+        rawLogger.logApiResponse(
+          'anthropic',
+          requestId,
+          200, // Assuming success status code
+          {}, // Headers not directly available
+          result, // The full response object
+          durationMs
+        );
+      } catch (logError) {
+        console.error('Failed to log API response:', logError);
+      }
+      
+      return result;
+    });
+  } catch (error) {
+    logError(error);
+    
+    // Log the error to raw logger
+    try {
+      const requestId = (stream as any)?.requestId ?? randomUUID();
+      const durationMs = Date.now() - start;
+      rawLogger.logApiError(
+        'anthropic', 
+        requestId, 
+        {
+          error: error instanceof Error ? error.message : String(error),
+          status: error instanceof APIError ? error.status : undefined,
+          provider: 'anthropic',
+          model: smallModel,
+          messageCount: assistantPrompt ? 2 : 1,
+          attempt: attemptNumber,
+        }, 
+        durationMs
+      );
+    } catch (logError) {
+      console.error('Failed to log API error:', logError);
+    }
+    
+    logEvent('tengu_api_error', {
+      error: error instanceof Error ? error.message : String(error),
+      status: error instanceof APIError ? String(error.status) : undefined,
+      model: smallModel,
+      messageCount: String(assistantPrompt ? 2 : 1),
+      durationMs: String(Date.now() - start),
+      durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
+      attempt: String(attemptNumber),
+      provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+      requestId: (stream as any)?.requestId ?? undefined,
+    });
+    
+    // Update session state with error details
+    setSessionState('lastApiError', {
+      timestamp: Date.now(),
+      provider: 'anthropic',
+      baseURL: 'https://api.anthropic.com/v1',
+      message: error instanceof Error ? error.message : String(error),
+      details: error
+    });
+    
+    return getAssistantMessageFromError(error, 'small');
+  }
+  
+  const durationMs = Date.now() - start;
+  const durationMsIncludingRetries = Date.now() - startIncludingRetries;
+  
+  logEvent('tengu_api_success', {
+    model: smallModel,
+    messageCount: String(assistantPrompt ? 2 : 1),
+    inputTokens: String(response.usage.input_tokens),
+    outputTokens: String(response.usage.output_tokens),
+    durationMs: String(durationMs),
+    durationMsIncludingRetries: String(durationMsIncludingRetries),
+    attempt: String(attemptNumber),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    requestId: (stream as any)?.request_id ?? undefined,
+    stop_reason: response.stop_reason ?? undefined,
+  });
+
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const costUSD =
+    (inputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_INPUT_TOKENS +
+    (outputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_OUTPUT_TOKENS;
+
+  addToTotalCost(costUSD, durationMs);
+
+  // Handle empty content scenarios gracefully
+  const normalizedContent = Array.isArray(response.content) 
+    ? normalizeContentFromAPI(response.content)
+    : [{ type: 'text', text: NO_CONTENT_MESSAGE, citations: [] }];
+  
+  const assistantMessage: AssistantMessage = {
+    durationMs,
+    message: {
+      ...response,
+      content: normalizedContent,
+      usage: {
+        ...response.usage,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    },
+    costUSD,
+    type: 'assistant',
+    uuid: randomUUID(),
+  };
+
+  return assistantMessage;
 }

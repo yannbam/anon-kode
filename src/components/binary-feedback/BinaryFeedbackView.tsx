@@ -2,7 +2,8 @@ import { Option, SelectProps } from '@inkjs/ui'
 import chalk from 'chalk'
 import { Box, Text, useInput } from 'ink'
 import Link from 'ink-link'
-import React, { useState } from 'react'
+import * as React from 'react'
+import { useState } from 'react'
 import { getTheme } from '../../utils/theme'
 import { Select } from '../CustomSelect/select'
 import type { Tool } from '../../Tool'
@@ -44,7 +45,7 @@ export function getOptions(): BinaryFeedbackOption[] {
   ]
 }
 
-type Props = {
+interface BinaryFeedbackViewProps {
   m1: AssistantMessage
   m2: AssistantMessage
   onChoose?: BinaryFeedbackChoose
@@ -57,7 +58,7 @@ type Props = {
   verbose: boolean
 }
 
-export function BinaryFeedbackView({
+export const BinaryFeedbackView: React.FC<BinaryFeedbackViewProps> = ({
   m1,
   m2,
   onChoose,
@@ -68,7 +69,7 @@ export function BinaryFeedbackView({
   tools,
   unresolvedToolUseIDs,
   verbose,
-}: Props) {
+}) => {
   const theme = getTheme()
   const [focused, setFocus] = useState('no-preference')
   const [focusValue, setFocusValue] = useState<string | undefined>(undefined)

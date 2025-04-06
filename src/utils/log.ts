@@ -193,6 +193,10 @@ export async function loadLogList(
             (firstPrompt.length > 50 ? '…' : '') || 'No prompt',
         messageCount: messages.length,
         sidechainNumber,
+        // Add required LogOption properties
+        enabled: true,
+        mode: 'formatted' as const,
+        path: fullPath,
       }
     }),
   )

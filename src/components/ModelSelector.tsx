@@ -36,23 +36,45 @@ type ReasoningEffortOption = 'low' | 'medium' | 'high';
 function useEscapeNavigation(onEscape: () => void, abortController?: AbortController) {
   // Use a ref to track if we've handled the escape key
   const handledRef = useRef(false);
+  // Use a ref to track if the component is mounted
+  const isMountedRef = useRef(true);
+  
+  // Set up cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   
   useInput((input, key) => {
-    if (key.escape && !handledRef.current) {
+    if (key.escape && !handledRef.current && isMountedRef.current) {
       handledRef.current = true;
       // Reset after a short delay to allow for multiple escapes
       setTimeout(() => {
-        handledRef.current = false;
+        if (isMountedRef.current) {
+          handledRef.current = false;
+        }
       }, 100);
-      onEscape();
+      // Make sure we don't call onEscape if it's undefined
+      if (onEscape) {
+        onEscape();
+      }
     }
   }, { isActive: true });
 }
 
 function printModelConfig() {
   const config = getGlobalConfig()
-  let res = `  ⎿  ${config.largeModelName} | ${config.largeModelMaxTokens} ${config.largeModelReasoningEffort ? config.largeModelReasoningEffort : ''}`
-  res += `  |  ${config.smallModelName} | ${config.smallModelMaxTokens} ${config.smallModelReasoningEffort ? config.smallModelReasoningEffort : ''}`
+  // Format max tokens, showing default if undefined
+  const largeMaxTokens = config.largeModelMaxTokens ? config.largeModelMaxTokens : 'default'
+  const smallMaxTokens = config.smallModelMaxTokens ? config.smallModelMaxTokens : 'default'
+  
+  // Format reasoning effort, showing empty string if undefined
+  const largeEffort = config.largeModelReasoningEffort ? config.largeModelReasoningEffort : ''
+  const smallEffort = config.smallModelReasoningEffort ? config.smallModelReasoningEffort : ''
+  
+  let res = `  ⎿  ${config.largeModelName} | ${largeMaxTokens} ${largeEffort}`
+  res += `  |  ${config.smallModelName} | ${smallMaxTokens} ${smallEffort}`
   console.log(chalk.gray(res))
 }
 
@@ -79,11 +101,19 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
   
   // Function to go back to the previous screen
   const goBack = () => {
+    console.debug(`ModelSelector: goBack called, current stack: ${JSON.stringify(screenStack)}`)
+    
     if (screenStack.length > 1) {
       // Remove the current screen from the stack
-      setScreenStack(prev => prev.slice(0, -1))
+      console.debug(`ModelSelector: Going back one screen in goBack function`)
+      setScreenStack(prev => {
+        const newStack = prev.slice(0, -1)
+        console.debug(`ModelSelector: New stack after goBack: ${JSON.stringify(newStack)}`)
+        return newStack
+      })
     } else {
       // If we're at the first screen, call onDone to exit
+      console.debug(`ModelSelector: At first screen, exiting`)
       onDone()
     }
   }
@@ -370,8 +400,11 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
       if (apiKey) {
         newConfig.largeModelApiKeys = [apiKey]
       }
-      if (maxTokens) {
+      if (maxTokens && maxTokens.trim() !== '') {
         newConfig.largeModelMaxTokens = parseInt(maxTokens)
+      } else {
+        // Set to undefined rather than leaving the previous value
+        newConfig.largeModelMaxTokens = undefined
       }
       if (reasoningEffort) {
         newConfig.largeModelReasoningEffort = reasoningEffort
@@ -391,8 +424,11 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
       if (apiKey) {
         newConfig.smallModelApiKeys = [apiKey]
       }
-      if (maxTokens) {
+      if (maxTokens && maxTokens.trim() !== '') {
         newConfig.smallModelMaxTokens = parseInt(maxTokens)
+      } else {
+        // Set to undefined rather than leaving the previous value
+        newConfig.smallModelMaxTokens = undefined
       }
       if (reasoningEffort) {
         newConfig.smallModelReasoningEffort = reasoningEffort
@@ -418,17 +454,53 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
   
   // Handle back navigation based on current screen
   const handleBack = () => {
-    if (currentScreen === 'modelType') {
-      // If we're at the first screen, call onDone to exit
-      onDone()
-    } else {
-      // Remove the current screen from the stack
-      setScreenStack(prev => prev.slice(0, -1))
+    try {
+      if (currentScreen === 'modelType') {
+        // If we're at the first screen, call onDone to exit
+        if (typeof onDone === 'function') {
+          onDone();
+        }
+      } else if (screenStack.length > 1) {
+        // Remove the current screen from the stack
+        setScreenStack(prev => prev.slice(0, -1));
+      } else {
+        // Fallback to exit if screen stack is broken
+        if (typeof onDone === 'function') {
+          onDone();
+        }
+      }
+    } catch (error) {
+      // If we encounter an error, try to exit gracefully
+      console.error('Error during back navigation:', error);
+      if (typeof onDone === 'function') {
+        onDone();
+      }
     }
   }
   
-  // Use escape navigation hook
-  useEscapeNavigation(handleBack, abortController);
+  // Force screen refresh function to help with terminal rendering issues
+  const forceScreenRefresh = useCallback(() => {
+    // Send a carriage return to refresh the terminal display
+    process.stdout.write('\r');
+  }, []);
+  
+  // Use escape navigation hook with screen refresh
+  useEscapeNavigation(() => {
+    // Only call handleBack if the component is still mounted
+    // Add more detailed logging to track navigation actions
+    console.debug(`ModelSelector: Processing ESC key, current screen: ${currentScreen}`);
+    // Store the current screen to properly handle navigation
+    const currentScreenBeforeBack = currentScreen;
+    
+    // Call handleBack which will update the screen stack if needed
+    handleBack();
+    
+    // Only refresh if we're not exiting from the first screen
+    if (currentScreenBeforeBack !== 'modelType') {
+      // Add a small delay and force screen refresh
+      setTimeout(forceScreenRefresh, 50);
+    }
+  }, abortController);
   
   // Handle cursor offset changes
   function handleCursorOffsetChange(offset: number) {
@@ -891,7 +963,7 @@ export function ModelSelector({ onDone: onDoneProp, abortController }: Props): R
                 <Text>
                   <Text bold>Small Model: </Text>
                   <Text color={theme.suggestion}>
-                    {modelTypeToChange === 'both' ? selectedModel : config.smallModelName || 'Not set'}
+                    {selectedModel}
                   </Text>
                   <Text dimColor> (for simpler tasks)</Text>
                 </Text>

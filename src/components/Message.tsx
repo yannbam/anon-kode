@@ -55,24 +55,25 @@ export function Message({
   if (message.type === 'assistant') {
     return (
       <Box flexDirection="column" width="100%">
-        {message.message.content.map((_, index) => (
-          <AssistantMessage
-            key={index}
-            param={_}
-            costUSD={message.costUSD}
-            durationMs={message.durationMs}
-            addMargin={addMargin}
-            tools={tools}
-            debug={debug}
-            options={{ verbose }}
-            erroredToolUseIDs={erroredToolUseIDs}
-            inProgressToolUseIDs={inProgressToolUseIDs}
-            unresolvedToolUseIDs={unresolvedToolUseIDs}
-            shouldAnimate={shouldAnimate}
-            shouldShowDot={shouldShowDot}
-            width={width}
-          />
-        ))}
+        {message.message.content.map((contentItem, index) => {
+          // Create element manually with a unique key prop
+          return React.createElement(AssistantMessage, {
+            key: `assistant-message-${index}`,
+            param: contentItem,
+            costUSD: message.costUSD,
+            durationMs: message.durationMs,
+            addMargin: addMargin,
+            tools: tools,
+            debug: debug,
+            options: { verbose },
+            erroredToolUseIDs: erroredToolUseIDs,
+            inProgressToolUseIDs: inProgressToolUseIDs,
+            unresolvedToolUseIDs: unresolvedToolUseIDs,
+            shouldAnimate: shouldAnimate,
+            shouldShowDot: shouldShowDot,
+            width: width
+          });
+        })}
       </Box>
     )
   }
@@ -85,17 +86,18 @@ export function Message({
       : message.message.content
   return (
     <Box flexDirection="column" width="100%">
-      {content.map((_, index) => (
-        <UserMessage
-          key={index}
-          message={message}
-          messages={messages}
-          addMargin={addMargin}
-          tools={tools}
-          param={_ as TextBlockParam}
-          options={{ verbose }}
-        />
-      ))}
+      {content.map((contentItem, index) => {
+        // Create element manually with a unique key prop
+        return React.createElement(UserMessage, {
+          key: `user-message-${index}`,
+          message: message,
+          messages: messages,
+          addMargin: addMargin,
+          tools: tools,
+          param: contentItem as TextBlockParam,
+          options: { verbose }
+        });
+      })}
     </Box>
   )
 }

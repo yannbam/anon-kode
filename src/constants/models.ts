@@ -788,11 +788,10 @@ export const providers = {
     "name": "OpenRouter",
     "baseURL": "https://openrouter.ai/api/v1"
   },
-//   "anthropic": {
-//     "name": "Anthropic",
-//     "baseURL": "https://api.anthropic.com/v1",
-//     "status": "wip"
-//   },
+  "anthropic": {
+    "name": "Anthropic",
+    "baseURL": "https://api.anthropic.com/v1"
+  },
   "gemini": {
     "name": "Gemini",
     "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",

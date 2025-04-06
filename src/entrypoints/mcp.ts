@@ -1,4 +1,5 @@
 import { McpServer as Server } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { ZodSchema } from 'zod'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
@@ -47,6 +48,12 @@ const MCP_TOOLS: Tool[] = [
   LSTool,
 ]
 
+// Extend the McpServer type with the missing methods
+interface ExtendedMcpServer {
+  setRequestHandler<T extends ZodSchema, U extends ZodSchema>(requestSchema: T, handler: (request: { params: any; method: string }) => Promise<z.infer<U>>): void;
+  connect(transport: any): Promise<void>;
+}
+
 export async function startMCPServer(cwd: string): Promise<void> {
   await setCwd(cwd)
   const server = new Server(
@@ -59,15 +66,17 @@ export async function startMCPServer(cwd: string): Promise<void> {
         tools: {},
       },
     },
-  )
+  ) as Server & ExtendedMcpServer
 
   server.setRequestHandler(
     ListToolsRequestSchema,
-    async (): Promise<Zod.infer<typeof ListToolsResultSchema>> => {
+    async (): Promise<z.infer<typeof ListToolsResultSchema>> => {
       const tools = await Promise.all(
         MCP_TOOLS.map(async tool => ({
           ...tool,
-          description: await tool.description(z.object({})),
+          description: typeof tool.description === 'function' 
+            ? await tool.description(z.object({}))
+            : tool.description || '',
           inputSchema: zodToJsonSchema(tool.inputSchema) as ToolInput,
         })),
       )
@@ -80,8 +89,9 @@ export async function startMCPServer(cwd: string): Promise<void> {
 
   server.setRequestHandler(
     CallToolRequestSchema,
-    async (request): Promise<Zod.infer<typeof CallToolResultSchema>> => {
-      const { name, arguments: args } = request.params
+    async (request): Promise<z.infer<typeof CallToolResultSchema>> => {
+      // Cast request.params to the expected shape
+      const { name, arguments: args } = request.params as { name: string; arguments?: Record<string, unknown> }
       const tool = MCP_TOOLS.find(_ => _.name === name)
       if (!tool) {
         throw new Error(`Tool ${name} not found`)

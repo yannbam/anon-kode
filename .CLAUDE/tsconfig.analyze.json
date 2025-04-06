@@ -1,0 +1,21 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "jsx": "react"
+  },
+  "include": [
+    "src/components/Link.tsx",
+    "src/components/AsciiLogo.tsx",
+    "src/components/FallbackToolUseRejectedMessage.tsx",
+    "src/components/CustomSelect/select-option.tsx",
+    "src/components/binary-feedback/BinaryFeedbackView.tsx",
+    "src/components/binary-feedback/BinaryFeedback.tsx",
+    "src/constants/macros.ts",
+    "src/utils/log.ts",
+    "src/types/logs/index.ts",
+    "src/services/statsig.ts"
+  ]
+}

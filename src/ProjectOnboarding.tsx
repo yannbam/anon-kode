@@ -18,6 +18,15 @@ import { isDirEmpty } from './utils/file'
 import { MACRO } from './constants/macros'
 import { PROJECT_FILE, PRODUCT_NAME } from './constants/product'
 
+// Custom interfaces to match @inkjs/ui expected props
+interface OrderedListItemProps {
+  children: React.ReactNode;
+}
+
+interface OrderedListProps {
+  children: React.ReactNode;
+}
+
 // Function to mark onboarding as complete
 export function markProjectOnboardingComplete(): void {
   const projectConfig = getCurrentProjectConfig()
@@ -87,62 +96,60 @@ export default function ProjectOnboarding({
       {showOnboarding && (
         <>
           <Text color={theme.secondaryText}>Tips for getting started:</Text>
-          <OrderedList>
-            {/* Collect all the items that should be displayed */}
-            {(() => {
-              const items = []
-
-              if (isWorkspaceDirEmpty) {
-                items.push(
-                  <OrderedList.Item key="workspace">
-                    <Text color={theme.secondaryText}>
-                      Ask {PRODUCT_NAME} to create a new app or clone a
-                      repository.
-                    </Text>
-                  </OrderedList.Item>,
-                )
-              }
-              if (needsClaudeMd) {
-                items.push(
-                  <OrderedList.Item key="claudemd">
-                    <Text color={theme.secondaryText}>
-                      Run <Text color={theme.text}>/init</Text> to create a&nbsp;
-                      {PROJECT_FILE} file with instructions for {PRODUCT_NAME}.
-                    </Text>
-                  </OrderedList.Item>,
-                )
-              }
-
-              if (showTerminalTip) {
-                items.push(
-                  <OrderedList.Item key="terminal">
-                    <Text color={theme.secondaryText}>
-                      Run <Text color={theme.text}>/terminal-setup</Text>
-                      <Text bold={false}> to set up terminal integration</Text>
-                    </Text>
-                  </OrderedList.Item>,
-                )
-              }
-
+          <OrderedList children={(() => {
+            const items: React.ReactNode[] = [];
+            
+            // Create list items without the 'key' property in the props
+            if (isWorkspaceDirEmpty) {
               items.push(
-                <OrderedList.Item key="questions">
+                React.createElement(OrderedList.Item, {}, 
                   <Text color={theme.secondaryText}>
-                    Ask {PRODUCT_NAME} questions about your codebase.
+                    Ask {PRODUCT_NAME} to create a new app or clone a repository.
                   </Text>
-                </OrderedList.Item>,
-              )
-
+                )
+              );
+            }
+            
+            if (needsClaudeMd) {
               items.push(
-                <OrderedList.Item key="changes">
+                React.createElement(OrderedList.Item, {}, 
                   <Text color={theme.secondaryText}>
-                    Ask {PRODUCT_NAME} to implement changes to your codebase.
+                    Run <Text color={theme.text}>/init</Text> to create a&nbsp;
+                    {PROJECT_FILE} file with instructions for {PRODUCT_NAME}.
                   </Text>
-                </OrderedList.Item>,
+                )
+              );
+            }
+            
+            if (showTerminalTip) {
+              items.push(
+                React.createElement(OrderedList.Item, {}, 
+                  <Text color={theme.secondaryText}>
+                    Run <Text color={theme.text}>/terminal-setup</Text>
+                    <Text bold={false}> to set up terminal integration</Text>
+                  </Text>
+                )
+              );
+            }
+            
+            items.push(
+              React.createElement(OrderedList.Item, {}, 
+                <Text color={theme.secondaryText}>
+                  Ask {PRODUCT_NAME} questions about your codebase.
+                </Text>
               )
-
-              return items
-            })()}
-          </OrderedList>
+            );
+            
+            items.push(
+              React.createElement(OrderedList.Item, {}, 
+                <Text color={theme.secondaryText}>
+                  Ask {PRODUCT_NAME} to implement changes to your codebase.
+                </Text>
+              )
+            );
+            
+            return items;
+          })()}/>
         </>
       )}
 
@@ -157,11 +164,14 @@ export default function ProjectOnboarding({
               <Text>🆕 What&apos;s new in v{MACRO.VERSION}:</Text>
             </Box>
             <Box flexDirection="column" marginLeft={1}>
-              {releaseNotesToShow.map((note, noteIndex) => (
-                <Text key={noteIndex} color={getTheme().secondaryText}>
-                  • {note}
-                </Text>
-              ))}
+              {releaseNotesToShow.map((note, noteIndex) => {
+                // Using React.createElement avoids the issue with 'key' being passed as a prop
+                return React.createElement(
+                  Text, 
+                  { color: getTheme().secondaryText },
+                  `• ${note}`
+                );
+              })}
             </Box>
           </Box>
         </Box>

@@ -18,6 +18,7 @@ import {
 import PromptInput from '../components/PromptInput'
 import { Spinner } from '../components/Spinner'
 import { getSystemPrompt } from '../constants/prompts'
+import { sessionLogger } from '../utils/sessionLogger.js'
 import { getContext } from '../context'
 import { getTotalCost, useCostSummary } from '../cost-tracker'
 import { useLogStartupTime } from '../hooks/useLogStartupTime'
@@ -187,10 +188,8 @@ export function REPL({
       // Need to use an async IIFE to handle dynamic import
       (async () => {
         // Import here to avoid circular dependency - proper ES Module dynamic import
-        const sessionLoggerModule = await import('../utils/sessionLogger.js');
-        const configModule = await import('../utils/config.js');
-        const { sessionLogger } = sessionLoggerModule;
-        const { getGlobalConfig } = configModule;
+        // Using static imports from the top of the file
+        // No dynamic imports needed, circular dependency is resolved properly
       
         const newForkNumber = forkNumber + 1;
       
@@ -556,12 +555,10 @@ export function REPL({
 
   return (
     <>
-      <Static
-        key={`static-messages-${forkNumber}`}
-        items={messagesJSX.filter(_ => _.type === 'static')}
-      >
-        {_ => _.jsx}
-      </Static>
+      {/* Use wrapping div to handle the key */}
+      <div>
+        <Static items={messagesJSX.filter(_ => _.type === 'static')} children={(item: {jsx: React.ReactNode}) => item.jsx} />
+      </div>
       {messagesJSX.filter(_ => _.type === 'transient').map(_ => _.jsx)}
       <Box
         borderColor="red"

@@ -19,12 +19,20 @@ const DEFAULT_MODEL_CONFIG: ModelConfig = {
   firstParty: 'deepseek-chat',
 }
 
-// export const SMALL_FAST_MODEL = USE_BEDROCK
-//   ? 'us.anthropic.claude-3-5-haiku-20241022-v1:0'
-//   : USE_VERTEX
-//     ? 'claude-3-5-haiku@20241022'
-//     : 'claude-3-5-haiku-20241022'
+// Provider-aware model selection
+export function getSmallFastModel(): string {
+  const config = getGlobalConfig();
+  if (config.primaryProvider === 'anthropic') {
+    return USE_BEDROCK
+      ? 'us.anthropic.claude-3-5-haiku-20241022-v1:0'
+      : USE_VERTEX
+        ? 'claude-3-5-haiku@20241022'
+        : 'claude-3-5-haiku-20241022';
+  }
+  return config.smallModelName || 'deepseek-chat';
+}
 
+// For backward compatibility
 export const SMALL_FAST_MODEL = 'deepseek-chat'
 /**
  * Helper to get the model config from statsig or defaults
@@ -43,9 +51,17 @@ async function getModelConfig(): Promise<ModelConfig> {
 }
 
 export const getSlowAndCapableModel = memoize(async (): Promise<string> => {
-
   const config = await getGlobalConfig()
-  return config.smallModelName
+  
+  // For Anthropic, return the correct model based on the provider
+  if (config.primaryProvider === 'anthropic') {
+    return USE_BEDROCK
+      ? 'us.anthropic.claude-3-7-sonnet-20250219-v1:0' 
+      : USE_VERTEX
+        ? 'claude-3-7-sonnet@20250219'
+        : 'claude-3-7-sonnet-20250219';
+  }
+  return config.largeModelName || 'deepseek-chat'
 })
 
 export async function isDefaultSlowAndCapableModel(): Promise<boolean> {

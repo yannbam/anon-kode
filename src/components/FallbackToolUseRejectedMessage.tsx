@@ -1,9 +1,13 @@
-import * as React from 'react'
-import { getTheme } from '../utils/theme'
-import { Text } from 'ink'
-import { PRODUCT_NAME } from '../constants/product'
+import * as React from 'react';
+import { Text } from 'ink';
+import { getTheme } from '../utils/theme';
+import { PRODUCT_NAME } from '../constants/product';
 
-export function FallbackToolUseRejectedMessage(): React.ReactNode {
+interface FallbackToolUseRejectedMessageProps {
+  // No required props
+}
+
+export const FallbackToolUseRejectedMessage: React.FC<FallbackToolUseRejectedMessageProps> = () => {
   return (
     <Text>
       &nbsp;&nbsp;⎿ &nbsp;
@@ -11,5 +15,5 @@ export function FallbackToolUseRejectedMessage(): React.ReactNode {
         No (tell {PRODUCT_NAME} what to do differently)
       </Text>
     </Text>
-  )
-}
+  );
+};

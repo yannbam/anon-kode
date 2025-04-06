@@ -1,4 +1,5 @@
-import { default as React, useCallback } from 'react'
+import * as React from 'react'
+import { useCallback } from 'react'
 import { useNotifyAfterTimeout } from '../../hooks/useNotifyAfterTimeout'
 import { AssistantMessage, BinaryFeedbackResult } from '../../query'
 import type { Tool } from '../../Tool'
@@ -11,7 +12,7 @@ import {
 } from './utils.js'
 import { PRODUCT_NAME } from '../../constants/product'
 
-type Props = {
+interface BinaryFeedbackProps {
   m1: AssistantMessage
   m2: AssistantMessage
   resolve: (result: BinaryFeedbackResult) => void
@@ -24,7 +25,7 @@ type Props = {
   verbose: boolean
 }
 
-export function BinaryFeedback({
+export const BinaryFeedback: React.FC<BinaryFeedbackProps> = ({
   m1,
   m2,
   resolve,
@@ -35,7 +36,7 @@ export function BinaryFeedback({
   tools,
   unresolvedToolUseIDs,
   verbose,
-}: Props): React.ReactNode {
+}) => {
   const onChoose = useCallback<BinaryFeedbackChoose>(
     choice => {
       logBinaryFeedbackEvent(m1, m2, choice)
