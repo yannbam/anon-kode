@@ -6,12 +6,14 @@ type SessionState = {
   failedApiKeys: Record<'small' | 'large', string[]>;
   lastApiError: {
     timestamp: number;
-    status: number | null;
+    status?: number | null;
     message: string;
-    headers: Record<string, string>;
+    headers?: Record<string, string>;
     provider: string;
-    apiKey: string; // Partial key for identification
+    apiKey?: string; // Partial key for identification
     details: any; // Full error details
+    baseURL?: string; // API base URL
+    endpoint?: string; // API endpoint
   } | null;
 }
 

@@ -65,7 +65,15 @@ import { getReasoningEffort } from '../utils/thinking'
 
 
 interface StreamResponse extends APIMessage {
-  ttftMs?: number
+  ttftMs?: number;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+  content?: Array<any>;
+  stop_reason?: string | null;
 }
 
 export const API_ERROR_MESSAGE_PREFIX = 'API Error'
