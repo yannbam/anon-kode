@@ -47,7 +47,7 @@ import type {
   MessageParam,
   TextBlockParam,
 } from '@anthropic-ai/sdk/resources/index.mjs'
-import { SMALL_FAST_MODEL, USE_BEDROCK, USE_VERTEX } from '../utils/model'
+import { SMALL_FAST_MODEL, getSmallFastModel, USE_BEDROCK, USE_VERTEX } from '../utils/model'
 import { getCLISyspromptPrefix } from '../constants/prompts'
 import { getVertexRegionForModel } from '../utils/model'
 import OpenAI from 'openai'
@@ -472,11 +472,19 @@ let anthropicClient: Anthropic | ExtendedAnthropicBedrock | ExtendedAnthropicVer
  * Get the Anthropic client, creating it if it doesn't exist
  */
 export function getAnthropicClient(model?: string): Anthropic | ExtendedAnthropicBedrock | ExtendedAnthropicVertex {
+  // If client exists and provider hasn't changed, reuse it
+  const config = getGlobalConfig();
+  
+  // Reset client if needed for provider change
+  if (anthropicClient && config.primaryProvider !== 'anthropic') {
+    anthropicClient = null;
+  }
+  
   if (anthropicClient) {
-    return anthropicClient
+    return anthropicClient;
   }
 
-  const region = getVertexRegionForModel(model)
+  const region = getVertexRegionForModel(model);
 
   const defaultHeaders: { [key: string]: string } = {
     'x-app': 'cli',
@@ -484,7 +492,7 @@ export function getAnthropicClient(model?: string): Anthropic | ExtendedAnthropi
   }
   if (process.env.ANTHROPIC_AUTH_TOKEN) {
     defaultHeaders['Authorization'] =
-      `Bearer ${process.env.ANTHROPIC_AUTH_TOKEN}`
+      `Bearer ${process.env.ANTHROPIC_AUTH_TOKEN}`;
   }
 
   const ARGS = {
@@ -492,36 +500,49 @@ export function getAnthropicClient(model?: string): Anthropic | ExtendedAnthropi
     maxRetries: 0, // Disabled auto-retry in favor of manual implementation
     timeout: parseInt(process.env.API_TIMEOUT_MS || String(60 * 1000), 10),
   }
+  
   if (USE_BEDROCK) {
-    const client = new AnthropicBedrock(ARGS) as ExtendedAnthropicBedrock
-    anthropicClient = client
-    return client
+    const client = new AnthropicBedrock(ARGS) as ExtendedAnthropicBedrock;
+    anthropicClient = client;
+    return client;
   }
+  
   if (USE_VERTEX) {
     const vertexArgs = {
       ...ARGS,
       region: region || process.env.CLOUD_ML_REGION || 'us-east5',
-    }
-    const client = new AnthropicVertex(vertexArgs) as ExtendedAnthropicVertex
-    anthropicClient = client
-    return client
+    };
+    const client = new AnthropicVertex(vertexArgs) as ExtendedAnthropicVertex;
+    anthropicClient = client;
+    return client;
   }
 
-  const apiKey = getAnthropicApiKey()
+  // For direct Anthropic API access
+  let apiKey = process.env.ANTHROPIC_API_KEY;
+  
+  // If primaryProvider is Anthropic, also check largeModelApiKeys
+  if (config.primaryProvider === 'anthropic' && (!apiKey || apiKey === '')) {
+    const modelType = model?.includes('haiku') ? 'small' : 'large';
+    apiKey = getActiveApiKey(config, modelType) || getAnthropicApiKey();
+  } else {
+    apiKey = getAnthropicApiKey();
+  }
 
-  if (process.env.USER_TYPE === 'ant' && !apiKey) {
+  if (!apiKey) {
     console.error(
       chalk.red(
-        '[ANT-ONLY] Please set the ANTHROPIC_API_KEY environment variable to use the CLI. To create a new key, go to https://console.anthropic.com/settings/keys.',
+        'Please set an API key for Anthropic. Either set ANTHROPIC_API_KEY environment variable or configure it in the settings.',
       ),
-    )
+    );
   }
+  
   anthropicClient = new Anthropic({
     apiKey,
     dangerouslyAllowBrowser: true,
     ...ARGS,
-  })
-  return anthropicClient
+  });
+  
+  return anthropicClient;
 }
 
 /**
@@ -696,7 +717,196 @@ async function querySonnetWithPromptCaching(
     prependCLISysprompt: boolean
   },
 ): Promise<AssistantMessage> {
-  return queryOpenAI('large', messages, systemPrompt, maxThinkingTokens, tools, signal, options)
+  const config = getGlobalConfig();
+  
+  // Check if provider is Anthropic to use direct Anthropic implementation
+  if (config.primaryProvider === 'anthropic') {
+    return queryAnthropicDirectly(messages, systemPrompt, maxThinkingTokens, tools, signal, options);
+  }
+  
+  // For all other providers, use the OpenAI-based implementation
+  return queryOpenAI('large', messages, systemPrompt, maxThinkingTokens, tools, signal, options);
+}
+
+/**
+ * Direct implementation of Anthropic API calls - based on original implementation
+ */
+async function queryAnthropicDirectly(
+  messages: (UserMessage | AssistantMessage)[],
+  systemPrompt: string[],
+  maxThinkingTokens: number,
+  tools: Tool[],
+  signal: AbortSignal,
+  options: {
+    dangerouslySkipPermissions: boolean
+    model: string
+    prependCLISysprompt: boolean
+  },
+): Promise<AssistantMessage> {
+  const anthropic = getAnthropicClient(options.model);
+
+  // Prepend system prompt block for easy API identification
+  if (options.prependCLISysprompt) {
+    // Log stats about first block for analyzing prefix matching config
+    const [firstSyspromptBlock] = splitSysPromptPrefix(systemPrompt);
+    logEvent('tengu_sysprompt_block', {
+      snippet: firstSyspromptBlock?.slice(0, 20),
+      length: String(firstSyspromptBlock?.length ?? 0),
+      hash: firstSyspromptBlock
+        ? createHash('sha256').update(firstSyspromptBlock).digest('hex')
+        : '',
+    });
+
+    systemPrompt = [getCLISyspromptPrefix(), ...systemPrompt];
+  }
+
+  const system: TextBlockParam[] = splitSysPromptPrefix(systemPrompt).map(
+    _ => ({
+      ...(PROMPT_CACHING_ENABLED
+        ? { cache_control: { type: 'ephemeral' } }
+        : {}),
+      text: _,
+      type: 'text',
+    }),
+  );
+
+  const toolSchemas = await Promise.all(
+    tools.map(async _ => ({
+      name: _.name,
+      description: await _.prompt({
+        dangerouslySkipPermissions: options.dangerouslySkipPermissions,
+      }),
+      // Use tool's JSON schema directly if provided, otherwise convert Zod schema
+      input_schema: ('inputJSONSchema' in _ && _.inputJSONSchema
+        ? _.inputJSONSchema
+        : zodToJsonSchema(_.inputSchema)) as any,
+    })),
+  );
+
+  const betas = ['tool_use:logging=false'];
+  const useBetas = PROMPT_CACHING_ENABLED && betas.length > 0;
+  
+  logEvent('tengu_api_query', {
+    model: options.model,
+    messagesLength: String(
+      JSON.stringify([...system, ...messages, ...toolSchemas]).length,
+    ),
+    temperature: String(MAIN_QUERY_TEMPERATURE),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    ...(useBetas ? { betas: betas.join(',') } : {}),
+  });
+
+  const startIncludingRetries = Date.now();
+  let start = Date.now();
+  let attemptNumber = 0;
+  let response;
+  let stream: any = undefined;
+  
+  try {
+    response = await withRetry(async attempt => {
+      attemptNumber = attempt;
+      start = Date.now();
+      // Use Anthropic's streaming API
+      const s = anthropic.beta.messages.stream(
+        {
+          model: options.model,
+          max_tokens: Math.max(
+            maxThinkingTokens + 1,
+            8192, // Default for most Claude models
+          ),
+          messages: addCacheBreakpoints(messages),
+          temperature: MAIN_QUERY_TEMPERATURE,
+          system,
+          tools: toolSchemas.length > 0 ? toolSchemas : undefined,
+          ...(useBetas ? { betas } : {}),
+          metadata: getMetadata(),
+          ...(maxThinkingTokens > 0
+            ? {
+                thinking: {
+                  budget_tokens: maxThinkingTokens,
+                  type: 'enabled',
+                },
+              }
+            : {}),
+        },
+        { signal },
+      );
+      stream = s;
+      return handleMessageStream(s);
+    });
+  } catch (error) {
+    logError(error);
+    logEvent('tengu_api_error', {
+      model: options.model,
+      error: error instanceof Error ? error.message : String(error),
+      status: error instanceof APIError ? String(error.status) : undefined,
+      messageCount: String(messages.length),
+      messageTokens: String(countTokens(messages)),
+      durationMs: String(Date.now() - start),
+      durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
+      attempt: String(attemptNumber),
+      provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+      requestId: (stream as any)?.request_id ?? undefined,
+    });
+    return getAssistantMessageFromError(error, 'large');
+  }
+  
+  const durationMs = Date.now() - start;
+  const durationMsIncludingRetries = Date.now() - startIncludingRetries;
+  
+  logEvent('tengu_api_success', {
+    model: options.model,
+    messageCount: String(messages.length),
+    messageTokens: String(countTokens(messages)),
+    inputTokens: String(response.usage.input_tokens),
+    outputTokens: String(response.usage.output_tokens),
+    cachedInputTokens: String(
+      (response.usage as any).cache_read_input_tokens ?? 0,
+    ),
+    uncachedInputTokens: String(
+      (response.usage as any).cache_creation_input_tokens ?? 0,
+    ),
+    durationMs: String(durationMs),
+    durationMsIncludingRetries: String(durationMsIncludingRetries),
+    attempt: String(attemptNumber),
+    ttftMs: String(response.ttftMs),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    requestId: (stream as any)?.request_id ?? undefined,
+    stop_reason: response.stop_reason ?? undefined,
+  });
+
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const cacheReadInputTokens =
+    (response.usage as any).cache_read_input_tokens ?? 0;
+  const cacheCreationInputTokens =
+    (response.usage as any).cache_creation_input_tokens ?? 0;
+  const costUSD =
+    (inputTokens / 1_000_000) * SONNET_COST_PER_MILLION_INPUT_TOKENS +
+    (outputTokens / 1_000_000) * SONNET_COST_PER_MILLION_OUTPUT_TOKENS +
+    (cacheReadInputTokens / 1_000_000) *
+      SONNET_COST_PER_MILLION_PROMPT_CACHE_READ_TOKENS +
+    (cacheCreationInputTokens / 1_000_000) *
+      SONNET_COST_PER_MILLION_PROMPT_CACHE_WRITE_TOKENS;
+
+  addToTotalCost(costUSD, durationMsIncludingRetries);
+
+  return {
+    message: {
+      ...response,
+      content: normalizeContentFromAPI(response.content),
+      usage: {
+        ...response.usage,
+        cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+        cache_creation_input_tokens:
+          response.usage.cache_creation_input_tokens ?? 0,
+      },
+    },
+    costUSD,
+    durationMs,
+    type: 'assistant',
+    uuid: randomUUID(),
+  };
 }
 
 function getAssistantMessageFromError(error: unknown, modelType?: 'large' | 'small'): AssistantMessage {
@@ -1030,10 +1240,6 @@ export async function queryHaiku({
   enablePromptCaching?: boolean
   signal?: AbortSignal
 }): Promise<AssistantMessage> {
-  // Import here to avoid circular dependency - proper ES Module dynamic import
-  // Using static imports from the top of the file
-  // No dynamic imports needed, circular dependency is resolved properly
-  
   return await withVCR(
     [
       {
@@ -1051,6 +1257,26 @@ export async function queryHaiku({
       },
     ],
     () => {
+      const config = getGlobalConfig();
+      
+      // Check if provider is Anthropic and route to direct Anthropic implementation
+      if (config.primaryProvider === 'anthropic') {
+        return enablePromptCaching
+          ? queryHaikuWithPromptCaching({
+              systemPrompt,
+              userPrompt,
+              assistantPrompt,
+              signal,
+            })
+          : queryHaikuWithoutPromptCaching({
+              systemPrompt,
+              userPrompt,
+              assistantPrompt,
+              signal,
+            });
+      }
+      
+      // For non-Anthropic providers, use the OpenAI implementation
       const messages = [
         {
           message: { role: 'user', content: userPrompt },
@@ -1058,7 +1284,7 @@ export async function queryHaiku({
           uuid: randomUUID(),
         }
       ] as (UserMessage | AssistantMessage)[]
-      return queryOpenAI('small', messages, systemPrompt, 0, [], signal)      
+      return queryOpenAI('small', messages, systemPrompt, 0, [], signal);
     },
   )
 }
@@ -1078,4 +1304,252 @@ function getMaxTokensForModelType(modelType: 'large' | 'small'): number {
   }
 
   return maxTokens ?? 8000
+}
+
+/**
+ * Direct implementation for calling Anthropic API with small models
+ */
+async function queryHaikuWithPromptCaching({
+  systemPrompt,
+  userPrompt,
+  assistantPrompt,
+  signal,
+}: {
+  systemPrompt: string[]
+  userPrompt: string
+  assistantPrompt?: string
+  signal?: AbortSignal
+}): Promise<AssistantMessage> {
+  // Use the provider-aware model selection
+  const smallModel = getSmallFastModel();
+  const anthropic = getAnthropicClient(smallModel);
+  
+  const messages = [
+    {
+      role: 'user' as const,
+      content: userPrompt,
+    },
+    ...(assistantPrompt
+      ? [{ role: 'assistant' as const, content: assistantPrompt }]
+      : []),
+  ];
+
+  const system: TextBlockParam[] = splitSysPromptPrefix(systemPrompt).map(
+    _ => ({
+      ...(PROMPT_CACHING_ENABLED
+        ? { cache_control: { type: 'ephemeral' } }
+        : {}),
+      text: _,
+      type: 'text',
+    }),
+  );
+
+  logEvent('tengu_api_query', {
+    model: smallModel,
+    messagesLength: String(JSON.stringify([...system, ...messages]).length),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+  });
+  
+  let attemptNumber = 0;
+  let start = Date.now();
+  const startIncludingRetries = Date.now();
+  let response: StreamResponse;
+  let stream: any = undefined;
+  
+  try {
+    response = await withRetry(async attempt => {
+      attemptNumber = attempt;
+      start = Date.now();
+      const s = anthropic.beta.messages.stream(
+        {
+          model: smallModel,
+          max_tokens: 512,
+          messages,
+          system,
+          temperature: 0,
+          metadata: getMetadata(),
+          stream: true,
+        },
+        { signal },
+      );
+      stream = s;
+      return await handleMessageStream(s);
+    });
+  } catch (error) {
+    logError(error);
+    logEvent('tengu_api_error', {
+      error: error instanceof Error ? error.message : String(error),
+      status: error instanceof APIError ? String(error.status) : undefined,
+      model: smallModel,
+      messageCount: String(assistantPrompt ? 2 : 1),
+      durationMs: String(Date.now() - start),
+      durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
+      attempt: String(attemptNumber),
+      provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+      requestId: (stream as any)?.request_id ?? undefined,
+    });
+    return getAssistantMessageFromError(error, 'small');
+  }
+
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const cacheReadInputTokens = response.usage.cache_read_input_tokens ?? 0;
+  const cacheCreationInputTokens = response.usage.cache_creation_input_tokens ?? 0;
+  const costUSD =
+    (inputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_INPUT_TOKENS +
+    (outputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_OUTPUT_TOKENS +
+    (cacheReadInputTokens / 1_000_000) *
+      HAIKU_COST_PER_MILLION_PROMPT_CACHE_READ_TOKENS +
+    (cacheCreationInputTokens / 1_000_000) *
+      HAIKU_COST_PER_MILLION_PROMPT_CACHE_WRITE_TOKENS;
+
+  const durationMs = Date.now() - start;
+  const durationMsIncludingRetries = Date.now() - startIncludingRetries;
+  addToTotalCost(costUSD, durationMsIncludingRetries);
+
+  const assistantMessage: AssistantMessage = {
+    durationMs,
+    message: {
+      ...response,
+      content: normalizeContentFromAPI(response.content),
+    },
+    costUSD,
+    uuid: randomUUID(),
+    type: 'assistant',
+  };
+
+  logEvent('tengu_api_success', {
+    model: smallModel,
+    messageCount: String(assistantPrompt ? 2 : 1),
+    inputTokens: String(inputTokens),
+    outputTokens: String(response.usage.output_tokens),
+    cachedInputTokens: String(response.usage.cache_read_input_tokens ?? 0),
+    uncachedInputTokens: String(response.usage.cache_creation_input_tokens ?? 0),
+    durationMs: String(durationMs),
+    durationMsIncludingRetries: String(durationMsIncludingRetries),
+    ttftMs: String(response.ttftMs),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    requestId: (stream as any)?.request_id ?? undefined,
+    stop_reason: response.stop_reason ?? undefined,
+  });
+
+  return assistantMessage;
+}
+
+/**
+ * Direct implementation for calling Anthropic API with small models without prompt caching
+ */
+async function queryHaikuWithoutPromptCaching({
+  systemPrompt,
+  userPrompt,
+  assistantPrompt,
+  signal,
+}: {
+  systemPrompt: string[]
+  userPrompt: string
+  assistantPrompt?: string
+  signal?: AbortSignal
+}): Promise<AssistantMessage> {
+  // Use the provider-aware model selection
+  const smallModel = getSmallFastModel();
+  const anthropic = getAnthropicClient(smallModel);
+  
+  const messages = [
+    { role: 'user' as const, content: userPrompt },
+    ...(assistantPrompt
+      ? [{ role: 'assistant' as const, content: assistantPrompt }]
+      : []),
+  ];
+  
+  logEvent('tengu_api_query', {
+    model: smallModel,
+    messagesLength: String(JSON.stringify([{ systemPrompt }, ...messages]).length),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+  });
+
+  let attemptNumber = 0;
+  let start = Date.now();
+  const startIncludingRetries = Date.now();
+  let response: StreamResponse;
+  let stream: any = undefined;
+  
+  try {
+    response = await withRetry(async attempt => {
+      attemptNumber = attempt;
+      start = Date.now();
+      const s = anthropic.beta.messages.stream(
+        {
+          model: smallModel,
+          max_tokens: 512,
+          messages,
+          system: splitSysPromptPrefix(systemPrompt).map(text => ({
+            type: 'text',
+            text,
+          })),
+          temperature: 0,
+          metadata: getMetadata(),
+          stream: true,
+        },
+        { signal },
+      );
+      stream = s;
+      return await handleMessageStream(s);
+    });
+  } catch (error) {
+    logError(error);
+    logEvent('tengu_api_error', {
+      error: error instanceof Error ? error.message : String(error),
+      status: error instanceof APIError ? String(error.status) : undefined,
+      model: smallModel,
+      messageCount: String(assistantPrompt ? 2 : 1),
+      durationMs: String(Date.now() - start),
+      durationMsIncludingRetries: String(Date.now() - startIncludingRetries),
+      attempt: String(attemptNumber),
+      provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+      requestId: (stream as any)?.request_id ?? undefined,
+    });
+    return getAssistantMessageFromError(error, 'small');
+  }
+  
+  const durationMs = Date.now() - start;
+  const durationMsIncludingRetries = Date.now() - startIncludingRetries;
+  
+  logEvent('tengu_api_success', {
+    model: smallModel,
+    messageCount: String(assistantPrompt ? 2 : 1),
+    inputTokens: String(response.usage.input_tokens),
+    outputTokens: String(response.usage.output_tokens),
+    durationMs: String(durationMs),
+    durationMsIncludingRetries: String(durationMsIncludingRetries),
+    attempt: String(attemptNumber),
+    provider: USE_BEDROCK ? 'bedrock' : USE_VERTEX ? 'vertex' : '1p',
+    requestId: (stream as any)?.request_id ?? undefined,
+    stop_reason: response.stop_reason ?? undefined,
+  });
+
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const costUSD =
+    (inputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_INPUT_TOKENS +
+    (outputTokens / 1_000_000) * HAIKU_COST_PER_MILLION_OUTPUT_TOKENS;
+
+  addToTotalCost(costUSD, durationMs);
+
+  const assistantMessage: AssistantMessage = {
+    durationMs,
+    message: {
+      ...response,
+      content: normalizeContentFromAPI(response.content),
+      usage: {
+        ...response.usage,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    },
+    costUSD,
+    type: 'assistant',
+    uuid: randomUUID(),
+  };
+
+  return assistantMessage;
 }
