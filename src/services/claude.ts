@@ -311,7 +311,14 @@ function messageReducer(previous: OpenAI.ChatCompletionMessage, item: OpenAI.Cha
           }
         }
       } else if (typeof acc[key] === 'string' && typeof value === 'string') {
-        acc[key] += value;
+        // Don't concatenate role values, as they should be set only once
+        // This fixes a bug where "role":"assistant" appears in multiple chunks
+        // and gets concatenated to "role":"assistantassistant"
+        if (key === 'role') {
+          // Role is already set, don't append
+        } else {
+          acc[key] += value;
+        }
       } else if (typeof acc[key] === 'number' && typeof value === 'number') {
         acc[key] = value;
       } else if (Array.isArray(acc[key]) && Array.isArray(value)) {
