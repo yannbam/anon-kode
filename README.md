@@ -23,32 +23,54 @@ You can use the onboarding to set up the model, or `/model`.
 If you don't see the models you want on the list, you can manually set them in `/config`
 As long as you have an openai-like endpoint, it should work.
 
-## HOW TO DEV
+## Development Guide
 
-```
-pnpm i
+### Prerequisites
+
+- Node.js v20.0.0 or higher
+- pnpm (recommended) or npm
+
+### Setup
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run in development mode
 pnpm run dev
+```
+
+### Development Commands
+
+- `pnpm run dev` - Run the application in development mode
+- `NODE_ENV=development pnpm run dev --verbose --debug` - Run with extra logging for debugging
+
+### Build Process
+
+The project uses TypeScript with ESM modules. The build process includes:
+
+1. TypeScript compilation to JavaScript
+2. Fixing module imports for ESM compatibility
+3. Output generation in the `dist` directory
+
+```bash
+# Build the project
 pnpm run build
 ```
 
-Get some more logs while debugging:
-```
-NODE_ENV=development pnpm run dev --verbose --debug
-```
+Additional build-related commands:
 
-### Build with Type Error Suppression
+- `pnpm run fix-imports` - Fix ESM imports in compiled files
+- `pnpm run analyze-imports` - Analyze imports that may need fixing
 
-Temporary build tools have been added to help build the project despite TypeScript errors:
+### Architecture
 
-```
-# Build with type error suppression
-node build-temp-test.js
+- TypeScript with ESM modules (`"type": "module"` in package.json)
+- React with Ink for terminal UI
+- Bundler moduleResolution for clean import paths
+- CLI entry point in `bin/kode.js`
 
-# Standard build (will fail if type errors exist)
-pnpm run build
-```
-
-See `.CLAUDE/tool-interface-changes.md` for details on recent interface updates.
+For more details about the build scripts, see [scripts/README.md](scripts/README.md).
 
 ## BUGS
 

@@ -1,0 +1,30 @@
+# ESM Migration files (consolidated into the three new files)
+.CLAUDE/esm-migration-testing-plan.md
+.CLAUDE/esm-migration-verification-readme.md
+.CLAUDE/esm-runtime-fixes.md
+.CLAUDE/esm-runtime-troubleshooting-guide.md
+.CLAUDE/esm-runtime-verification-summary.md
+.CLAUDE/esm-test-script.js
+.CLAUDE/esm-transition-plan.md
+.CLAUDE/nodejs-compatibility-note.md
+.CLAUDE/quick-verification-tests.md
+.CLAUDE/esm-migration-initialization-guide.md
+.CLAUDE/branch-comparison-helper.sh
+
+# TypeScript error fixing files (no longer needed)
+.CLAUDE/type-errors-categorized.md
+.CLAUDE/typescript-error-fixing-workflow.md
+.CLAUDE/typescript-fix-progress.md
+.CLAUDE/typescript-fixes-completed.md 
+.CLAUDE/typescript-fixes-guide.md
+.CLAUDE/analyze-typescript.js
+.CLAUDE/tsconfig.analyze.json
+
+# React-related files (consolidated)
+.CLAUDE/react-typescript-lessons.md
+.CLAUDE/react-typescript-cheatsheet-links.md
+.CLAUDE/react-rendering-fixes.md
+
+# Outdated files
+.CLAUDE/conversation_summary01.txt
+.CLAUDE/tool-interface-changes.md
