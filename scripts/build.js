@@ -22,7 +22,7 @@ tsc.on('exit', (code) => {
   console.log('TypeScript compilation successful. Fixing module imports...');
   
   // Run fix-imports.js after successful compilation
-  const fixImports = spawn('node', ['fix-imports.js'], {
+  const fixImports = spawn('node', ['scripts/fix-imports.js'], {
     stdio: 'inherit',
     shell: true
   });
